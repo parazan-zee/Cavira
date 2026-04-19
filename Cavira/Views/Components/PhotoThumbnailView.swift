@@ -1,0 +1,71 @@
+import SwiftUI
+
+struct PhotoThumbnailView: View {
+    @Environment(\.appServices) private var appServices
+
+    let entry: PhotoEntry
+
+    @State private var image: UIImage?
+
+    var body: some View {
+        GeometryReader { geo in
+            let side = min(geo.size.width, geo.size.height)
+            ZStack {
+                Rectangle()
+                    .fill(CaviraTheme.surfacePhoto)
+                if let image {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: side, height: side)
+                        .clipped()
+                } else {
+                    ProgressView()
+                        .tint(CaviraTheme.accent)
+                        .scaleEffect(0.85)
+                }
+
+                if entry.mediaKind == .video {
+                    Image(systemName: "play.circle.fill")
+                        .font(.title2)
+                        .symbolRenderingMode(.palette)
+                        .foregroundStyle(.white, .black.opacity(0.35))
+                        .padding(6)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                }
+            }
+            .frame(width: side, height: side)
+        }
+        .aspectRatio(1, contentMode: .fit)
+        .accessibilityLabel(accessibilityLabelText)
+        .task(id: entry.id) {
+            await loadThumbnail()
+        }
+    }
+
+    private var accessibilityLabelText: String {
+        switch entry.mediaKind {
+        case .video:
+            return "Video, \(formattedDate(entry.capturedDate))"
+        case .image:
+            if entry.isLivePhoto {
+                return "Live Photo, \(formattedDate(entry.capturedDate))"
+            }
+            return "Photo, \(formattedDate(entry.capturedDate))"
+        }
+    }
+
+    private func formattedDate(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.dateStyle = .medium
+        f.timeStyle = .none
+        return f.string(from: date)
+    }
+
+    @MainActor
+    private func loadThumbnail() async {
+        guard let loader = appServices?.photoImageLoader else { return }
+        let loaded = await loader.loadThumbnail(for: entry)
+        image = loaded
+    }
+}

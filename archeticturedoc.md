@@ -1,0 +1,1404 @@
+# Cavira — Architecture & phased build document
+### Single source of truth for constraints, phased work, and repo decisions (`archeticturedoc.md`)
+
+**Maintenance:** Whenever you change behaviour, models, services, or navigation, update this file so the project stays traceable (**Build progress** table, **Repo snapshot**, phase prompts, and “decisions” sections).
+
+---
+
+## Repo snapshot — what’s in the build today (Phases 1–6.1)
+
+Use this as the **inventory of shipped behaviour** before starting **Phase 7+**.
+
+| Area | In repo / working |
+|------|-------------------|
+| **Models** | SwiftData: `PhotoEntry` (incl. `mediaKind`, `isLivePhoto`, `localIdentifier`, `event`), `Event`, `Story`, `StorySlide`, tags, `AppSettings` (`defaultHomeView`, `appearanceMode`, `defaultStorageMode`), `PhotoAssetKind`, `HomeViewMode` (`.grid`, `.timeline`, `.videos`, `.events`, `.profile` migration-only). **`appearanceMode` is not wired to the UI** in v1 — the app runs **Ranger dark** only (see Phase 5.5 / Phase 12). |
+| **Theme** | **`Theme/CaviraTheme.swift`:** Ranger palette (`ranger_theme.md`); **hex literals match the spec exactly**. **`CaviraTheme.applyGlobalChrome()`** in **`CaviraApp`** (UIKit appearances: tab bar, nav bar, segmented control, table view). **`Assets.xcassets/AccentColor`** = **`#D4B96A`** (Ranger accent). **`RootView`:** `.preferredColorScheme(.dark)`, `.tint(CaviraTheme.accent)`, root **`backgroundPrimary`**. |
+| **Services** | `AppServices` + `Environment` (`AppServices?`); `PhotoLibraryService` (auth, `fetchAllAssets`, **`assetCountsByDayInMonth`**, `asset(for:)`); `PhotoImageLoader`; `PhotoImportService` (reference import, dedupe by `localIdentifier`, **link existing album rows to an `Event`** when importing with an occasion); `PhotoStorageServing` / `NoOpPhotoStorage`; `LocationSearchService`, `ContactsService`, `DataService`. |
+| **Shell** | `RootView` `TabView` (5 tabs); launch **`AppSettings`** bootstrap + **Photos** `requestAuthorization` task; `HomeTab` … `SettingsTab` each **one `NavigationStack`**. |
+| **Home** | Same as Phase 5.5 + **5**; segmented **Grid \| Timeline \| Videos \| Events** — **Events** = **`HomeEventsSummaryView`**: all occasions, **pinned first**, same cards as Calendar; **`AlbumImportToolbarButton`** on all segments; **`ImportOptionsSheet`**: “Add to an event” → **New occasion** (name field) **or** **Existing** picker when occasions exist; **`navigationDestination(for: UUID.self)`** resolves **photo** then **event** for **`PhotoDetailView`** → occasion chip. |
+| **Photo / import UI** | `Views/Photo/` picker + import sheet + detail; `Views/Components/` thumbnails + empty state; `Views/Home/` grid + timeline + `HomeScreen`. |
+| **Calendar tab** | **`EventsListView`**: **`LibraryMonthCalendarView`** (counts + **limited / not-determined** footnotes); **month title** opens **“Go to month”** sheet (**graphical `DatePicker`** + **Jump to today’s month** + **Go** / **Cancel**); prev/next chevrons unchanged; **Occasions** list; toolbar **`AlbumImportToolbarButton`** → **`CreateEditEventView`**; **`EventDetailView`**: **Pin** toggle + **Edit** (pin **not** in create/edit form); cover **`Picker`** when **≥ 2** photos in **Edit**; **`EventsTab`** `navigationDestination(for: UUID.self)` → event first, then photo. **`scenePhase` .active** and **`.task(id: displayedMonth)`** refresh month counts after jumps. |
+| **Placeholders** | Stories, Search, Settings bodies. |
+
+**Schema changes:** adding SwiftData properties historically required **simulator delete app** or a migration; keep a **VersionedSchema** / migration story in mind before App Store.
+
+---
+
+## Upcoming work (roadmap)
+
+| When | Focus |
+|------|--------|
+| **Next** | **Phase 7** — Tagging on `PhotoEntry`. |
+| **Then** | **Phase 8** — Search; **Phase 9** — Stories shelf + viewer + builder. |
+| **Late v1** | **Phase 10** — Settings & storage (no alternate colour themes — **`CaviraTheme`** / Ranger is the only v1 skin); **Phase 11** — Profile & pinning. |
+| **Close v1** | **Phase 12** — Polish & QA: missing-asset UI, **import flow GUI**, **sticky timeline months** (if not done earlier), empty states everywhere, animations, app icon, memory, full walkthrough; **optional** polish: dark-mode **tint** tuning, **SwiftUI-only** tab/nav chrome (see Phase 12). |
+| **Backlog** (see **Additional improvements** + UX notes) | Centre tab **`+`** global import; Calendar **day detail** strip; Stories **~10 s** clips. |
+
+---
+
+## How to use this document
+
+1. **Work through phases in order.** Each phase builds on the last. Do not skip ahead.
+2. **One phase at a time in Cursor.** ask user before moving on
+3. **If Cursor gets confused**, bring it to user with option and questions
+4. **Each phase has a checklist.** Run through it with user
+5. **If something breaks in a later phase**, it almost always traces back to a model or service from an earlier phase. Check those first.
+
+---
+
+## Build progress (repo tracker)
+
+Keep this table in sync with the Cavira codebase as phases finish. Each phase section below repeats the same status on its own **Build tracker** line.
+
+| Phase | Status |
+|:-----:|--------|
+| 1 — Project setup & models | ✅ Complete |
+| 2 — Core services | ✅ Complete |
+| 3 — Tab shell & navigation | ✅ Complete |
+| 4 — Photo / video import (reference, dedupe) | ✅ Complete |
+| 5 — Home (grid & timeline) | ✅ Complete |
+| 5.5 — CaviraTheme (Ranger) | ✅ Complete |
+| 6 — Events & Calendar (month + Photo counts + occasions) | ✅ Complete |
+| 6.1 — Calendar year/month navigation | ✅ Complete |
+| 7 — Tagging | ⏳ Not started |
+| 8 — Search | ⏳ Not started |
+| 9 — Stories | ⏳ Not started |
+| 10 — Settings & storage | ⏳ Not started |
+| 11 — Profile & pinning | ⏳ Not started |
+| 12 — Polish & QA | ⏳ Not started |
+
+---
+
+## App Name: Cavira
+**Platform:** iOS 17+ (iPhone only in v1 — `TARGETED_DEVICE_FAMILY = 1`)  
+**Language:** Swift / SwiftUI  
+**Database:** SwiftData  
+**Photo access:** PHPhotoLibrary  
+**Contacts:** CNContactStore  
+**Location search:** MapKit (`MKLocalSearchCompleter` + `MKLocalSearch`)
+
+### Cavira v1 product constraints (read before Phase 2+)
+- **Digital album (Home):** the **Home** tab shows **only** the **user-curated subset** of photos/videos the user wants in Cavira’s album — **not** the entire Photos library by default (see **Cavira UX direction**).
+- **Photos organiser only:** metadata, tags, events, and stories live in SwiftData; **pixels always come from the user’s Photos library** (reference / `localIdentifier`). No private image vault outside Photos in v1.
+- **Reference-only = no Cavira duplicate library:** Cavira **does not** copy full-resolution images or videos into Application Support for v1. Each `PhotoEntry` is a **pointer** to an asset already on the device (`localIdentifier`). The `StorageMode.localCopy` enum case remains for a **future** optional feature; imports and loaders are **reference-only** for now.
+- **One row per library asset in the album:** the user must **not** end up with multiple `PhotoEntry` rows for the same `localIdentifier` when adding to the digital album — treat import as **idempotent** (skip or update-in-place if that asset is already in SwiftData). This matches “one reference per gallery item,” not duplicate rows.
+- **Remove from Cavira ≠ delete from Apple Photos:** any “remove from album” / delete `PhotoEntry` action **only** deletes the SwiftData row (and Cavira metadata). **Cavira never deletes or edits assets inside the user’s Apple Photos library** in v1; deleting originals remains a **Photos** app concern.
+- **No duplicate on-disk library:** same as above — **no double storage** on disk in v1.
+- **Format:** when loading **still** originals from Photos, use **`PHImageManager.requestImageDataAndOrientation`** (or equivalent) so the system returns the asset’s native data (typically **HEIF**; JPEG/PNG where stored). **Video** assets use **Photos-backed playback** (e.g. `PHImageManager` / `AVPlayerItem` with the asset) — no transcoding to a Cavira-owned file in v1.
+- **Photos permission timing:** request library access **early at app launch** (e.g. first scene appearance of `RootView` / app root), **before** the user needs import or calendar counts. **Authorisation is persisted by iOS**; the app may also persist lightweight UX flags in **`AppSettings`** (e.g. whether we have shown a one-time explanation) — do **not** confuse that with duplicating photo data.
+- **Full library access (product):** Cavira is designed around **accurate read-only calendar counts** and frictionless import. **iOS does not allow apps to force “All Photos” programmatically**; we request **`readWrite`** access at launch, explain the need in **`NSPhotoLibraryUsageDescription`**, and refresh **`PHAuthorizationStatus`** when the app returns to **`.active`** (`scenePhase`) so **Limited → All Photos** changes in Settings show up without relaunching.
+- **Services:** prefer **`@Observable` + `@MainActor`** and **dependency injection** via `AppServices` and SwiftUI’s `Environment` (not singletons). Phase 3 wires this through the tab shell.
+
+### Cavira v1 UI & shell decisions (Phase 3 — keep in sync with repo)
+
+- **Device focus:** **iPhone only** for v1 (Xcode target **`TARGETED_DEVICE_FAMILY = 1`**). No iPad-specific sidebar shell in this guide unless scope changes.
+- **Navigation (HIG):** **One `NavigationStack` per tab** in each `*Tab.swift`; inner screens (`HomeScreen`, `EventsListView`, etc.) **do not** wrap a second `NavigationStack`.
+- **Root view:** The tab shell lives in **`RootView.swift`** with **`init(appServices:)`**. **`CaviraApp`** uses `WindowGroup { RootView(appServices: appServices).modelContainer(...) }`. **`RootView`** applies **`.environment(\.appServices, appServices)` on the `TabView`**. The **`AppServices`** type is **`@MainActor` only** (not `@Observable`); nested services stay `@Observable`.
+- **Environment typing:** `EnvironmentValues.appServices` is **`AppServices?`** (matches `EnvironmentKey` storage). Do **not** add a non-optional façade with `preconditionFailure` — SwiftUI can read the key during `TabView` merge before the value appears, which used to crash. Call sites use `if let` / `guard let` when unwrapping.
+- **`AppSettings` bootstrap:** **`RootView`** reads `@Environment(\.modelContext)` and in `.onAppear` calls `DataService.getOrCreateSettings(context:)`. **`DataService`** calls **`try? context.save()`** immediately after inserting the first `AppSettings` row so defaults hit disk without waiting on implicit flush — this follows Apple’s SwiftData pattern of using **`ModelContext.save()`** when you want changes committed.
+- **Home mode switcher (evolving):** **Instagram-style** segmented **`Picker`** in the nav bar: **Grid \| Timeline \| Videos \| Events**. **Grid** and **Timeline** show the **full digital album** (photos + videos together, Live stills in cells). **Videos** shows **only** `PhotoEntry` rows with **`mediaKind == .video`** in the same 3-column **`GridView`** (empty copy when the album has items but no videos). **Events** shows all **`Event`** rows (pinned first, then by `startDate`), **`EventCardView`** rows → **`EventDetailView`** via **`NavigationLink(value:)`**. **Profile** remains **dropped** from the header; `HomeViewMode.profile` may remain in the enum for SwiftData migration until removed in a small pass.
+- **Copy & localization:** **English UI strings only** in v1 placeholders (no `String(localized:)` / strings tables until we add locales).
+- **Chrome:** **Phase 5.5** applies the **Ranger** palette via **`CaviraTheme`** + **UIKit global appearances** (`CaviraTheme.applyGlobalChrome()`). There is **no** user-selectable light/dark or multi-palette theme in v1; optional refinements are **Phase 12** only.
+- **Global “add to album” (+):** **Home** and **Calendar** (occasions list) use the **same** top-trailing toolbar control — **`AlbumImportToolbarButton`** (`plus.circle.fill`, accent + tertiary ring) beside the nav title / segmented control. **Event detail** keeps a **large circular accent FAB** for “add to this occasion” (different context). **Not** a bottom-right FAB on Home. **Product stretch goal:** a **centre tab-bar `+`** for import from any tab — keep **one `NavigationStack` per tab** unchanged.
+- **No deep links:** **No URL schemes, Universal Links, or external tab routing** for Cavira content in v1. **Exception:** opening **system Settings** via `UIApplication.openSettingsURLString` (e.g. after Photos denial) is allowed and is **not** considered an app “deep link.”
+- **Previews:** **`CaviraPreviewSupport.swift`** defines **`caviraPreviewContainer()`** (in-memory SwiftData) and **`caviraPreviewShell()`** (container + `AppServices` via `environment`). **`RootView`** previews use **`RootView(appServices:).caviraPreviewContainer()`** so services are not duplicated.
+- **Accessibility:** Placeholder screens use **combined accessibility** / labels where it clarifies empty states.
+
+### Cavira UX direction (product — agreed decisions)
+
+#### Home tab (Instagram-style “digital album”)
+- **Source of truth:** Home shows **only the user-created subset** the user has chosen for their Cavira **digital album** — **not** the whole Apple Photos library. **This curation is the main point of the app.**
+- **Photos + videos:** the same digital album holds **still images and videos** side by side (Instagram-style: user can add either from the library into the same grid / timeline). **`PhotoEntry`** records the asset kind (see **Phase 1 / `PhotoEntry`** — `mediaKind` + Live flag).
+- **Live Photos:** on **Grid** and **Timeline**, show the **still poster frame** only (like a normal photo cell). The **Videos** segment lists **video assets only** (no Live Photo rows there). In **Photo detail**, support **Live Photo playback** (press-and-hold / motion like **Apple Photos**) using `PHLivePhoto` / `PHLivePhotoView` where the asset is live — still no duplicate files; all motion data stays in the system library.
+- **Grid \| Timeline \| Videos \| Events:** **Grid** and **Timeline** show the **same** curated album (**photos + videos**). **Grid** = 3-column thumbnail grid; **Timeline** = month-grouped **`AlbumTimelineView`** (non-sticky headers in v1; polish in Phase 12). **Videos** = same grid component, **`PhotoEntry.filter { $0.mediaKind == .video }`** only. **Events** = scrollable list of all **`Event`** occasions (pinned first), not the Photos library grid.
+- **Header toggle:** **Grid**, **Timeline**, **Videos**, and **Events** — **Profile** is not shown (see historical note below).
+- **What “Profile” meant (historical):** `HomeViewMode.profile` was a **placeholder third layout** (Instagram-like **“your grid of posts”**), not account settings. **Not** a third home segment going forward; remove from UI and retire from the enum in a small model pass when convenient.
+
+#### Calendar tab (user-facing rename from “Events”)
+- **Name:** Tab + nav title **Calendar**.
+- **Two layers (do not conflate):**
+  1. **System library calendar (read-only):** “What did I capture on this day?” comes from **Apple Photos** — query **`PHAsset`** by **creation date** when building the month / day UI. This includes **everything** in the library the OS exposes for that day, **whether or not** the user added those items to the **Home digital album**. **No bulk import into SwiftData on app launch** — that would bloat the store and contradict curation; the Calendar surface **reads the library live** (with optional small in-memory cache later if profiling demands it).
+  2. **Cavira `PhotoEntry` rows:** only assets the user explicitly **adds to the album** (import flow) get a row. Optional UI can show “already in Cavira” vs not when picking from a day — Phase 6+.
+- **Month view — counts:** Per-day counts and thumbnails use **`PHPhotoLibrary` / `PHAsset`** (images **and** videos) by creation date, same read-only tooling as above.
+- **User-created occasions (`Event` model):** **Keep** SwiftData **`Event`** (holidays, trips, etc.) **in addition** to the calendar counts UI. **Link events into Stories** (stories can reference or be spawned from an event — relationship / UX detailed in Phase 6 + 9 when built).
+
+#### Stories tab
+- **Shelf layout:** **Horizontal row of cards** (like a shelf), **separated** visually between stories.
+- **Card chrome:** **Background image stretches edge-to-edge** on the card; **user-chosen title text** draws **on top** of that image (readable contrast / safe areas in implementation).
+- **Create entry point:** **`+`** button **top-right** in the navigation area to create a new story.
+- **Viewer:** Instagram-style **tap-through** slides (**photos and videos**).
+- **Cover / poster:** **Default** = **first slide**; user must be able to **pick another** image as cover later.
+
+#### Search tab
+- **Name:** **Search** (keep).
+- **Purpose (expanded):** Search Cavira’s organised library by **metadata** — e.g. **location**, **person**, “**all photos I’ve ever included** with this person”, **family** groupings, **selfies** (via tags / smart labels / future face or album heuristics as product allows). Same technical direction as **Phase 8**; shell is still a placeholder until that phase.
+
+#### Theme & appearance (Ranger — shipped Phase 5.5)
+- **Single skin:** Cavira v1 ships **one** visual system: **Ranger / `CaviraTheme`** (`Theme/CaviraTheme.swift`), aligned with **`ranger_theme.md`**. **Do not** add alternate palettes (army green / black / white themes, `ThemePalette`, etc.) in Phases 6–11; those ideas are **removed from the roadmap**.
+- **Hex discipline:** Token **hex strings in `CaviraTheme` must match `ranger_theme.md` exactly** (no informal tweaks).
+- **Accent asset:** `Assets.xcassets/AccentColor` = Ranger accent **`#D4B96A`** (sRGB components must match that hex).
+- **Light mode / system appearance:** **Not** in scope for v1. **`RootView`** forces **`.preferredColorScheme(.dark)`** for a consistent Ranger dark shell. **`AppSettings.appearanceMode`** may remain in the model for a future release but is **ignored for UI** until/unless product reopens appearance (see **Phase 12**).
+- **Chrome implementation:** **UIKit global appearances** for tab bar, navigation bar, segmented controls, and table views (`CaviraTheme.applyGlobalChrome()`). **Phase 12 (optional):** consider **SwiftUI-only** chrome if we ever drop UIKit appearance side effects; treat as unlikely.
+
+### Additional improvements (schedule into a phase when ready)
+
+| Item | Notes |
+|------|--------|
+| **Calendar day detail** | Thumbnail strip / preview for **library** photos+videos on a date (read from `PHAsset`, not mass SwiftData import). **Phase 12** (per product — keep there for now). |
+| **Home — month-scoped occasions strip** | Optional later: on **Home**, surface occasions **filtered to the month/year** implied by Grid scroll or timeline position (beyond the shipped **Events** segment, which lists **all** occasions). **Schedule:** backlog / **Phase 11 (Profile)** if still desired. |
+| **Import — post-pick cover** | When importing **multiple** assets into an occasion in one go, optional step: **“Which photo is the cover?”** after import. **Backlog** unless folded into **Phase 12** import polish. |
+| **Centre tab `+`** | Global import entry from any tab (see **Global “add to album” (+)**); implement with Phase 4 / shell refactors. |
+| **Import UI polish** | Picker + `ImportOptionsSheet` presentation and copy — scheduled in **Phase 12** (“Import flow UI”). |
+| **Home timeline — sticky month headers** | Current **`AlbumTimelineView`** uses **non-sticky** month titles; upgrade via **`List`/`Section`** or custom stickies in **Phase 12** (or earlier if product pulls it forward). |
+| **SwiftData migrations** | As models evolve, plan **lightweight migrations** or **VersionedSchema** so TestFlight / App Store users are not forced to delete the app. |
+| **`ranger_theme.md`** | Human-readable **Ranger** spec; **canonical code** is **`CaviraTheme.swift`**. Keep the two in sync (especially hexes). |
+| **Retire `HomeViewMode.profile`** | UI already hides **Profile**; remove the enum case (and any stored defaults migration) when safe — small cleanup pass, not blocking Phase 6. |
+| **Stories — timed clips** | **~10 s** story segments (capture or trim). |
+
+---
+
+---
+
+# PHASE 1 — Project Setup & Data Models
+**Build tracker:** ✅ Complete — repo includes **`PhotoAssetKind`**, **`PhotoEntry.mediaKind`**, **`PhotoEntry.isLivePhoto`** (aligned with Phases 4–5).
+
+### Goal: A compiling project with all data models defined. No UI yet.
+
+---
+
+**Why first:** Everything else depends on the data models being correct. If models change later, SwiftData migrations become painful. Get these locked in before writing a single view.
+
+---
+
+### Cursor Prompt — Phase 1
+
+```
+Create a new iOS 17 SwiftUI project called "Cavira" with SwiftData.
+
+Set up the following:
+
+## 1. Project structure — create these folders:
+Cavira/
+├── Theme/
+├── Models/
+├── Services/
+├── Views/
+│   ├── Home/
+│   ├── Photo/
+│   ├── Events/
+│   ├── Stories/
+│   ├── Search/
+│   ├── Settings/
+│   └── Components/
+└── Resources/
+    └── Stickers/
+
+## 2. Create all data models in the Models/ folder:
+
+### Enums.swift
+```swift
+enum StorageMode: String, Codable { case reference, localCopy }
+// `profile` kept for SwiftData migration; Home UI is Grid | Timeline | Videos | Events (see Cavira UX direction).
+enum HomeViewMode: String, Codable { case grid, timeline, videos, events, profile }
+enum AppearanceMode: String, Codable { case system, light, dark }
+
+/// Library asset kind for a `PhotoEntry` (still vs video). Live Photos use `.image` + `isLivePhoto == true`.
+enum PhotoAssetKind: String, Codable { case image, video }
+```
+
+### TextOverlay.swift (Codable struct, NOT @Model)
+```swift
+struct TextOverlay: Codable, Identifiable {
+    var id: UUID = UUID()
+    var text: String
+    var fontName: String = "System"
+    var fontSize: CGFloat = 24
+    var colour: String = "#FFFFFF"     // hex string
+    var positionX: CGFloat = 0.5       // normalised 0–1
+    var positionY: CGFloat = 0.5
+    var rotation: CGFloat = 0
+    var isBold: Bool = false
+}
+```
+
+### StickerOverlay.swift (Codable struct, NOT @Model)
+```swift
+struct StickerOverlay: Codable, Identifiable {
+    var id: UUID = UUID()
+    var stickerName: String            // asset name or SF Symbol name
+    var positionX: CGFloat = 0.5
+    var positionY: CGFloat = 0.5
+    var scale: CGFloat = 1.0
+    var rotation: CGFloat = 0
+}
+```
+
+### LocationTag.swift (@Model)
+```swift
+@Model class LocationTag {
+    var id: UUID
+    var name: String
+    var latitude: Double?
+    var longitude: Double?
+    var mapKitPlaceID: String?
+    
+    init(id: UUID = UUID(), name: String, latitude: Double? = nil, longitude: Double? = nil, mapKitPlaceID: String? = nil) { ... }
+}
+```
+
+### PersonTag.swift (@Model)
+```swift
+@Model class PersonTag {
+    var id: UUID
+    var contactIdentifier: String
+    var displayName: String
+    var thumbnailData: Data?
+    
+    init(id: UUID = UUID(), contactIdentifier: String, displayName: String, thumbnailData: Data? = nil) { ... }
+}
+```
+
+### PhotoEntry.swift (@Model)
+```swift
+@Model class PhotoEntry {
+    var id: UUID
+    var localIdentifier: String?       // PHAsset identifier (reference mode) — unique in the digital album (see product constraints)
+    var storedFilename: String?        // reserved for a future optional on-disk copy feature; nil in v1
+    var storageMode: StorageMode
+    var mediaKind: PhotoAssetKind      // `.image` or `.video` (from PHAsset at import)
+    var isLivePhoto: Bool              // true → grid shows still only; detail uses Live Photo playback (Phase 5)
+    var capturedDate: Date             // from PHAsset.creationDate (creation / EXIF intent)
+    var loggedDate: Date               // date added to Cavira
+    var notes: String?
+    var locationTag: LocationTag?
+    @Relationship(deleteRule: .nullify) var peopleTags: [PersonTag] = []
+    var customTags: [String] = []
+    @Relationship(inverse: \Event.photos) var event: Event?
+    
+    // Store overlays as JSON-encoded Data
+    var textOverlaysData: Data?        // encodes [TextOverlay]
+    var stickerOverlaysData: Data?     // encodes [StickerOverlay]
+    
+    // Computed helpers
+    var textOverlays: [TextOverlay] { get/set using JSONDecoder/Encoder on textOverlaysData }
+    var stickerOverlays: [StickerOverlay] { get/set using JSONDecoder/Encoder on stickerOverlaysData }
+    
+    init(...) { ... }
+}
+```
+
+**Repo note:** If the on-disk model predates `mediaKind` / `isLivePhoto`, add them when implementing **Phase 4** (with a lightweight migration / dev reset as appropriate for your branch).
+
+### Event.swift (@Model)
+```swift
+@Model class Event {
+    var id: UUID
+    var title: String
+    var eventDescription: String?
+    var coverPhotoId: UUID?
+    var startDate: Date
+    var endDate: Date?
+    @Relationship(deleteRule: .nullify) var photos: [PhotoEntry] = []
+    var isPinned: Bool = false
+    var createdDate: Date
+    
+    init(...) { ... }
+}
+```
+
+### StorySlide.swift (@Model)
+```swift
+@Model class StorySlide {
+    var id: UUID
+    var order: Int
+    var photo: PhotoEntry?
+    var backgroundColour: String?
+    var textOverlaysData: Data?        // encodes [TextOverlay]
+    var stickerOverlaysData: Data?     // encodes [StickerOverlay]
+    
+    var textOverlays: [TextOverlay] { get/set }
+    var stickerOverlays: [StickerOverlay] { get/set }
+    
+    @Relationship(inverse: \Story.slides) var story: Story?
+    
+    init(...) { ... }
+}
+```
+
+### Story.swift (@Model)
+```swift
+@Model class Story {
+    var id: UUID
+    var title: String
+    var coverPhotoId: UUID?
+    @Relationship(deleteRule: .cascade) var slides: [StorySlide] = []
+    var event: Event?
+    var isPinned: Bool = false
+    var createdDate: Date
+    var lastEditedDate: Date
+    
+    // Computed: sorted slides
+    var orderedSlides: [StorySlide] { slides.sorted { $0.order < $1.order } }
+    
+    init(...) { ... }
+}
+```
+
+### AppSettings.swift (@Model)
+SwiftData’s `@Model` macro does not support shorthand enum defaults (like `= .reference`) on stored properties. Set defaults in `init` instead:
+```swift
+@Model class AppSettings {
+    var id: UUID
+    var defaultStorageMode: StorageMode
+    var defaultHomeView: HomeViewMode
+    var appearanceMode: AppearanceMode
+    
+    init() {
+        id = UUID()
+        defaultStorageMode = .reference
+        defaultHomeView = .grid
+        appearanceMode = .system
+    }
+}
+```
+
+## 3. Update CaviraApp.swift:
+Set up the SwiftData modelContainer with all models:
+```swift
+.modelContainer(for: [PhotoEntry.self, Event.self, Story.self, StorySlide.self, LocationTag.self, PersonTag.self, AppSettings.self])
+```
+
+## 4. Root placeholder (historical name in early repos: `ContentView.swift`):
+Just a minimal single-screen placeholder (e.g. centred title text) until Phase 3 replaces it with **`RootView`** and the tab shell.
+
+## 5. Add to Info.plist:
+- NSPhotoLibraryUsageDescription: "Cavira needs access to your photo library to let you import and organise your photos."
+- NSContactsUsageDescription: "Cavira uses your contacts so you can tag people in your photos."
+- NSLocationWhenInUseUsageDescription: "Cavira can use your location to suggest place tags."
+
+Do not create any views beyond that single placeholder root. Just models, enums, and the container setup. Make sure the project compiles with zero errors.
+```
+
+---
+
+### Phase 1 Test Checklist
+- [ ] Project compiles with zero errors and zero warnings
+- [ ] All model files exist in the Models/ folder
+- [ ] All enum types are defined and accessible
+- [ ] CaviraApp.swift has the modelContainer with all 7 model types
+- [ ] Info.plist has all 3 permission strings
+- [ ] App runs on simulator (Phase 1: single-label placeholder; after Phase 3, the tab shell is the expected launch UI)
+
+---
+
+---
+
+# PHASE 2 — Core Services
+**Build tracker:** ✅ Complete
+
+### Goal: All backend logic working before any real UI exists.
+
+---
+
+**Why before UI:** Views will call these services. If services are wrong, the views built on top of them will be wrong too. Test services independently first.
+
+---
+
+### Cursor Prompt — Phase 2
+
+```
+Implement core services under Services/ with iOS 17+ conventions: async/await, @MainActor where UI-adjacent state is published, Observation (@Observable) instead of ObservableObject where practical, and NO singletons — use dependency injection (see AppServices below). Do not create any new feature views beyond what already exists.
+
+## AppServices.swift + Environment
+- Define @MainActor @Observable final class AppServices holding: photoLibrary, photoImageLoader, photoStorage, locationSearch, contacts.
+- Initialiser accepts optional overrides for tests/previews (nil = production implementation).
+- Expose services through SwiftUI Environment (EnvironmentKey); root scene uses .appServices(AppServices()).
+- Previews must inject .appServices(AppServices(...)).
+
+## PhotoStorageService.swift (protocol + v1 stub)
+- protocol PhotoStorageServing: totalStorageUsed(), deleteFile(named:)
+- struct NoOpPhotoStorage: PhotoStorageServing — v1 does not write duplicate photos to disk (returns 0 bytes; delete is no-op).
+- (Future phase) A real disk implementation may write to Application Support/CaviraPhotos/ for an optional localCopy mode — not part of v1.
+
+## PhotoLibraryService.swift
+- @MainActor @Observable
+- authorizationStatus updated for authorised / limited / denied / restricted / notDetermined
+- requestAuthorization() async -> PHAuthorizationStatus using PHPhotoLibrary.requestAuthorization(for: .readWrite)
+- **Phase 4+ alignment:** `fetchAllAssets()` (or companion helpers) should be able to return **images and/or videos** as needed by Calendar / pickers — not images-only if the product requires video everywhere (see **Cavira UX direction**).
+- asset(for localIdentifier:) -> PHAsset?
+
+## PhotoImageLoader.swift
+- @MainActor @Observable; init(photoLibrary: PhotoLibraryService)
+- NSCache for decoded UIImages; clearCache()
+- v1: **reference mode only** — load via PHImageManager. For thumbnails use requestImage (~200pt). For **still** full library pixels use requestImageDataAndOrientation (native HEIF/JPEG/etc. as in Photos). **Video:** load poster / first frame or use AVFoundation-backed playback from the **`PHAsset`** without writing to Application Support. **Live Photo:** grid/thumbnail uses still image request; detail uses **`PHLivePhoto`** request path (Phase 5). **localCopy:** return nil (no Cavira disk files in v1).
+- loadImage(for:targetSize:), loadThumbnail(for:), loadFullLibraryImage(for:) — all async, never crash on missing asset
+
+## LocationSearchService.swift
+- Instagram-style on Apple’s stack only (no Google Places API in v1): **MKLocalSearchCompleter** for suggestions as the user types, debounced ~280ms with Task cancellation when the query changes.
+- results: [LocationResult] where each row has stable **UUID** id; name/subtitle from MKLocalSearchCompletion; lat/lon 0 until resolved.
+- resolveSelection(id:) async -> LocationResult? uses **MKLocalSearch.Request(completion:)** to fetch coordinates and, on iOS 18+, MKMapItem.identifier?.rawValue as mapKitPlaceID when available.
+- clear() resets completer and results.
+
+## ContactsService.swift
+- @MainActor @Observable; CNContactStore; published authorizationStatus
+- requestAuthorization() async
+- search(query:) using CNContact.predicateForContacts(matchingName:) + unifiedContacts (cap ~50 results; no special huge-address-book pass for v1)
+- contact(for identifier:) async -> ContactResult?
+
+## DataService.swift
+- enum DataService { static methods … }
+- Same query helpers as before; deletePhotoEntry(_:context:photoStorage:) takes any PhotoStorageServing (NoOp in v1).
+
+Compile with zero errors. No new tab/feature views.
+```
+
+---
+
+### Phase 2 Test Checklist
+- [ ] All **7** Swift files exist under `Services/` (includes `AppServices.swift`)
+- [ ] Project compiles with zero errors
+- [ ] `AppServices` is created in `CaviraApp` and injected with `.appServices(...)` on the root view
+- [ ] `#Preview` for the root shell (e.g. `RootView`) injects **`AppServices()`** (and a preview **`modelContainer`** when SwiftData is used) so previews do not hit `preconditionFailure`
+- [ ] `PhotoLibraryService` updates `authorizationStatus` after `requestAuthorization()`
+- [ ] `PhotoImageLoader` returns nil for `localCopy` entries (v1)
+- [ ] `NoOpPhotoStorage` reports `0` bytes used
+- [ ] `LocationSearchService` builds with MapKit (Completer + resolving search)
+- [ ] `ContactsService` builds with Contacts framework
+- [ ] `DataService` helpers compile against SwiftData
+
+---
+
+---
+
+# PHASE 3 — Tab Shell & Navigation
+**Build tracker:** ✅ Complete
+
+### Goal: The app has 5 tabs with placeholder screens. Navigation works end to end.
+
+---
+
+**Why before content:** Validates that the navigation structure is sound before filling it with real content. Cheaper to restructure tabs now than after 10 views are built on top.
+
+**Implemented conventions:** See **“Cavira v1 UI & shell decisions”** above (iPhone-only, one stack per tab, `RootView`, `AppSettings` + explicit `save()`, Instagram-style home segments, English copy, preview helper, no deep links). **Product layout** evolves under **“Cavira UX direction”** (e.g. second tab label **Calendar**, Home **Grid \| Timeline \| Videos**). **Colour system:** **`CaviraTheme`** / Ranger (`ranger_theme.md`), accent **`#D4B96A`**.
+
+---
+
+### Cursor Prompt — Phase 3
+
+```
+Build the navigation shell. All tab bodies are placeholders for now. Follow the repo decisions in the guide section “Cavira v1 UI & shell decisions (Phase 3)”.
+
+## RootView.swift
+- Hosts the `TabView` with the five tabs below.
+- `@Environment(\.modelContext)` + `.onAppear { _ = DataService.getOrCreateSettings(context:) }` so a default `AppSettings` row exists (see DataService note on `save()` after first insert).
+
+## CaviraApp.swift
+- `WindowGroup { RootView(appServices: appServices).modelContainer(for: [...]) }` (same model list as previews); `RootView` applies `.environment(\\.appServices, appServices)` on the `TabView`.
+
+## TabView (inside RootView)
+Mirror `RootView`: `HomeTab`, **`CalendarTab`** (or keep `EventsTab` filename until refactor), `StoriesTab`, `SearchTab`, `SettingsTab`; `Label` text for the second tab should read **Calendar** (system image `calendar` is fine).
+
+## One NavigationStack per tab (no nesting)
+- **`*Tab.swift`:** each file is ONLY `NavigationStack { <Screen>() }`.
+- **Inner screens** (`HomeScreen`, calendar month placeholder view, …): **no** inner `NavigationStack`; use `.navigationTitle` / toolbar on the content inside the tab’s stack.
+
+### Views/Home/HomeScreen.swift
+- Centred `Text("Home")` (or equivalent placeholder).
+- `.navigationTitle("Home")`, `.navigationBarTitleDisplayMode(.inline)`.
+- **Instagram-style** segmented `Picker` for **Grid \| Timeline \| Videos \| Events** (drop Profile segment per **Cavira UX direction**); bind to `HomeViewMode` until enum is trimmed.
+
+### Views/Events/ (Calendar shell until refactor)
+- User-facing title **Calendar**; placeholder body until Phase 4–6 (month grid + counts from Photos).
+
+### Views/Stories/StoriesListView.swift
+- `Text("No stories yet")`, `.navigationTitle("Stories")`.
+
+### Views/Search/SearchView.swift
+- `Text("Search placeholder")`, `.navigationTitle("Search")`.
+
+### Views/Settings/SettingsView.swift
+- `Text("Settings placeholder")`, `.navigationTitle("Settings")`.
+
+## CaviraPreviewSupport.swift
+- Shared in-memory `ModelContainer` for all `@Model` types.
+- `caviraPreviewShell()` = `modelContainer(...)` + `.environment(\\.appServices, AppServices())` (optional `AppServices?` in `EnvironmentValues`).
+- Every `#Preview` for a tab or screen that needs SwiftData + services uses `.caviraPreviewShell()`.
+
+## Dependency injection (Phase 2 `AppServices`)
+- **Do not** introduce `static let shared` for services.
+- Tab roots and children read **`@Environment(\.appServices)`** (or pass `AppServices` explicitly) when needed.
+- Phase 4+ import and home screens will call `environment.appServices.photoLibrary`, `.photoImageLoader`, etc.
+
+## Accessibility
+- Use `.accessibilityElement(children: .combine)` / `.accessibilityLabel` on simple placeholder groups where it helps VoiceOver.
+
+The app should compile and run. All 5 tabs tappable with placeholder text and correct navigation titles.
+```
+
+---
+
+### Phase 3 Test Checklist
+- [ ] App launches and shows 5 tabs at the bottom
+- [ ] All 5 tabs are tappable with correct icons and labels
+- [ ] Each tab shows its placeholder text
+- [ ] Navigation titles display correctly (single stack per tab — no double stacks)
+- [ ] Home tab shows the Instagram-style segmented control (**Grid / Timeline / Videos**) in the nav bar; selection state may be local-only until a later phase
+- [ ] `RootView` `onAppear` ensures `AppSettings` exists; first-run insert is followed by **`ModelContext.save()`** inside `DataService.getOrCreateSettings`
+- [ ] `AppServices` remains injected on the root scene
+- [ ] `#Preview` for tab/screen files uses **`.caviraPreviewShell()`** (or equivalent) so previews do not `preconditionFailure`
+- [ ] No crashes
+
+---
+
+---
+
+# PHASE 4 — Photo Import Flow
+**Build tracker:** ✅ Complete
+
+### Goal: User can add **photos and videos** from Apple Photos into Cavira’s **digital album** as **`PhotoEntry` references** only — correct `mediaKind`, **Live Photo** flag, **no duplicate rows** per `localIdentifier`, and **no duplicate files** on disk.
+
+---
+
+**Why before displaying photos:** Can't show a grid or timeline without `PhotoEntry` rows. Import is the entry point for curated album content. **Calendar** (Phase 6) still reads the **whole library** by date separately — no mass import on launch (see **Cavira UX direction → Calendar tab**).
+
+---
+
+### Cursor Prompt — Phase 4
+
+```
+Build the photo import flow. This is the core content entry point for the digital album.
+
+## Models (if not already in repo)
+- Add `PhotoAssetKind` (`image`, `video`) and on `PhotoEntry`: `mediaKind`, `isLivePhoto` (see Phase 1 spec). Derive from `PHAsset.mediaType` and `PHAsset.mediaSubtypes.contains(.photoLive)` at import.
+
+## Views/Photo/PhotoPickerRepresentable.swift (or PhotoImportFlow.swift — pick one clear name)
+Wrap `PHPickerViewController` with `UIViewControllerRepresentable`.
+- Multi-select enabled (no practical limit)
+- Filter: **images, Live Photos, and videos** (UTType / PHPicker filter — match Instagram-style “anything from library”)
+- On completion: pass `[PHPickerResult]` to SwiftUI via callback / binding
+
+Use a small coordinator pattern; dismiss picker after confirm.
+
+## Views/Photo/ImportOptionsSheet.swift
+After the user picks assets, show this sheet before writing SwiftData:
+
+- Title: dynamic count — e.g. "Import 12 items" (photos + videos)
+- **v1:** Explain **reference-only**: items **stay in Apple Photos**; Cavira stores **organisation + metadata** and a **library identifier**, not a second copy of the file. No "Copy to Cavira" / no Application Support originals.
+- Toggle: "Add to an event" — if on, pick from existing `Event` rows (`@Query`); **create-new Event** can wait until Phase 6 if empty, or add a minimal inline create — match whatever Phase 6 prompt settles on.
+- Primary "Import" and "Cancel"
+
+## Import logic (ViewModel or sheet-owned):
+Use `@Environment(\.appServices)` → `PhotoLibraryService` + `ModelContext`.
+
+For each `PHPickerResult`:
+1. Resolve `localIdentifier` (assetIdentifier / itemProvider patterns supported by PHPicker + your iOS target).
+2. `guard let asset = photoLibrary.asset(for: id)` else skip.
+3. `capturedDate = asset.creationDate ?? Date()`
+4. **Dedupe:** if a `PhotoEntry` with the same `localIdentifier` already exists, **skip** (or no-op refresh) — user must never get duplicate references to the same library asset in the album.
+5. Insert `PhotoEntry(storageMode: .reference, localIdentifier: id, storedFilename: nil, mediaKind: …, isLivePhoto: …, …)`; set `event` if selected.
+6. `try` `context.save()` — surface failures to the user where reasonable (avoid silent drop of whole batch).
+
+## Photo permission — app launch + import
+- On **first launch / root appearance** (e.g. `RootView.onAppear` or `CaviraApp` task): call **`PhotoLibraryService.requestAuthorization()`** (or a thin wrapper `requestAuthorisationIfNeeded() async -> Bool` that returns **true** for `.authorized` / `.limited`). **iOS persists** the user’s choice; optional **`AppSettings`** flag only for **UX copy** (“we’ve already asked”), not for security state.
+- If user denies / restricted: when they hit **Import** or `+`, show alert with **Open Settings** → `UIApplication.openSettingsURLString` (allowed; not a product “deep link”).
+
+## HomeScreen.swift — entry point (overlay `+`, not nav bar)
+- **`+`:** top-trailing on the **main content** (overlay / `ZStack`), **not** `ToolbarItem` / navigation bar. Tapping presents picker → `ImportOptionsSheet`. **Do not** use a bottom-right FAB for the primary add control.
+
+## RootView / tab bar — optional global add
+- **Stretch:** implement a **centre tab-bar `+`** that invokes the **same** picker → options → import pipeline from **any tab**, without breaking “one NavigationStack per tab”. Document in code where the shared flow lives (e.g. small `ImportCoordinator` observable, or scene-level `@State` passed via environment).
+
+## EventDetailView (Phase 6 placeholder)
+- Comment: **top-trailing content overlay `+`** (same placement rule as Home — not in the nav bar) will hook the same import flow with `event` pre-selected (not a bottom FAB).
+
+## PhotoLibraryService
+- Keep `requestAuthorization()`; add **`requestAuthorisationIfNeeded() async -> Bool`** as a convenience if useful (authorised **or** limited → true).
+- Ensure helpers support resolving **video** and **live** assets.
+
+End-to-end: after import, SwiftData contains one row per added library id; thumbnails can wait for Phase 5.
+```
+
+---
+
+### Phase 4 Test Checklist
+- [ ] Photos permission is requested **at app launch** (early root) and **not** only the first time user taps `+`
+- [ ] **Top-trailing `+` on Home content** (not navigation bar) starts picker → options sheet → save
+- [ ] (Optional) Centre tab **`+`** starts the same flow from another tab
+- [ ] Picker supports **multi-select** of **stills, Live Photos, and videos**
+- [ ] Import sheet explains **reference-only** (no duplicate files on disk)
+- [ ] Each saved `PhotoEntry` has `storageMode == .reference`, `localIdentifier` set, `storedFilename == nil`, correct **`mediaKind`**, correct **`isLivePhoto`**
+- [ ] **Re-importing the same asset** does **not** create a second `PhotoEntry`
+- [ ] `capturedDate` matches library creation date for a known asset
+- [ ] Denied / restricted Photos shows alert with **Open Settings**
+
+---
+
+---
+
+# PHASE 5 — Home Screen (Grid, Timeline & Videos)
+**Build tracker:** ✅ Complete (includes **Videos** segment: video-only grid)
+
+### Goal: Imported **photos and videos** (and **Live Photo** stills in grid/timeline) are visible in **Grid** and **Timeline**; **Videos** shows **only** video rows in the same grid chrome. View switching works. **Grid \| Timeline \| Videos** preference is **persisted** in **`AppSettings.defaultHomeView`**. **Remove from album** only removes the `PhotoEntry` — never Apple Photos.
+
+---
+
+### Cursor Prompt — Phase 5
+
+```
+Build the Home screen with working **Grid**, **Timeline**, and **Videos** views. Items imported in Phase 4 (`PhotoEntry` with `mediaKind` / `isLivePhoto`) should now be visible.
+
+**Naming:** use **`AlbumTimelineView`** for the month-grouped timeline — **not** `TimelineView` (SwiftUI’s built-in schedule API).
+
+**Navigation:** **`HomeTab`** already owns the lone **`NavigationStack`** per tab — **`HomeScreen` must not wrap a second stack**; use **`navigationDestination(for: UUID.self)`** (or equivalent) for **`PhotoDetailView`**, Instagram-style **push → Back** to the album.
+
+## Views/Home/HomeScreen.swift — full implementation
+
+State:
+- `@Query` `PhotoEntry` sorted by **`capturedDate` descending**
+- `@State` **Grid \| Timeline \| Videos** mode: initialise from **`AppSettings.defaultHomeView`** on appear; **persist** back to `AppSettings` whenever the user changes the segmented control (coerce `.profile` → `.grid` until the enum is removed)
+- Keep Phase 4 **top-trailing content `+`** overlay (not in the nav bar)
+
+Layout:
+- **Navigation title:** **"Cavira"** (product choice)
+- **Toolbar `.principal`:** segmented **Grid \| Timeline \| Videos** (no Profile segment)
+- Content: **`AlbumTimelineView`** for **Timeline**; **`GridView`** for **Grid** (full album) and **Videos** (`filter { $0.mediaKind == .video }`, with distinct **EmptyStateView** copy when the album has photos but no videos)
+- **Remove from album:** context menu on thumbnails + detail menu; **`confirmationDialog`** copy must state removal is **Cavira-only** — **no** deletion from Apple Photos (see product constraints)
+
+## Views/Home/GridView.swift
+
+- LazyVGrid with 3 columns, spacing 2pt (tight, like Instagram); support optional **empty title / subtitle** for reuse from **Videos** mode
+- Each cell: PhotoThumbnailView(entry: photo) — square, fills cell width; **videos** show a play-badge overlay; **Live Photos** use **still** thumbnail only
+- Sort: photos already sorted by capturedDate descending from parent
+- On tap: navigate to PhotoDetailView(entry: photo)
+- Empty state: **`EmptyStateView`** — title **"Import your media to start"** (photos + videos)
+
+## Views/Home/AlbumTimelineView.swift
+
+- `ScrollView` + **`LazyVStack`** grouped by **month + year** of `capturedDate`
+- For each group: section title **"June 2024"** (bold, large) — **non-sticky** headers are acceptable for v1; **sticky month headers** (`List`/`Section` or custom) are a **Phase 12** polish item if we want parity with calendar-style scrolling
+- Under each header: a **2-column** `LazyVGrid` of `PhotoThumbnailView` cells
+- On tap: navigate to PhotoDetailView(entry: photo)
+- Empty state: same **`EmptyStateView`** copy as Grid
+
+## Views/Components/PhotoThumbnailView.swift
+
+```swift
+struct PhotoThumbnailView: View {
+    let entry: PhotoEntry
+    @State private var image: UIImage? = nil
+    
+    var body: some View {
+        // Square ZStack
+        // Load thumbnail async via @Environment(\.appServices).photoImageLoader.loadThumbnail(for: entry)
+        // Show ProgressView while loading
+        // Show image when loaded (fill frame, .scaledToFill, .clipped)
+        // If image is nil after load attempt: show a grey placeholder with photo SF Symbol
+    }
+}
+```
+
+## Views/Components/EmptyStateView.swift
+
+```swift
+struct EmptyStateView: View {
+    var systemImage: String = "photo.on.rectangle"
+    var title: String
+    var subtitle: String?
+    // Centred, grey, SF Symbol above title, subtitle below
+}
+```
+
+## Views/Photo/PhotoDetailView.swift — basic version (we'll add tags in Phase 7)
+
+- **Instagram-style navigation:** push from grid/timeline; **Back** returns to the album — no swipe-to-dismiss requirement if it conflicts with horizontal paging later
+- Full-screen **black** backdrop; **still** image via `PhotoImageLoader`; **Live Photo:** **`PHLivePhotoView`** via **`UIViewRepresentable`** with **`PHLivePhoto`** from `PHAsset` — **system / iOS Photos-style** interaction (long-press where appropriate)
+- **Video:** **`VideoPlayer`** with `AVPlayer` / `PHImageManager.requestPlayerItem(forVideo:)` — no Cavira file copy
+- Navigation title: captured date (e.g. **"12 June 2024"**)
+- Notes + event name in a bottom **safe-area inset** when present
+- Toolbar **⋯** menu: **Remove from album** (same Apple Photos disclaimer as Home), Edit/Share placeholders
+- **Do not** implement tagging yet — Phase 7
+
+```
+
+---
+
+### Phase 5 Test Checklist
+- [ ] **Navigation title** reads **"Cavira"**; **Grid \| Timeline \| Videos** sits in the **toolbar principal** only
+- [ ] **Grid \| Timeline \| Videos** choice **persists** across launches via **`AppSettings.defaultHomeView`**
+- [ ] **Grid** shows imported **photos and videos** in a 3-column grid (video cells identifiable, e.g. play badge)
+- [ ] **Videos** shows **only** video `PhotoEntry` rows; empty state explains **No videos yet** when the album has items but no videos
+- [ ] **Live Photos** show **still** thumbnails in grid/timeline only
+- [ ] **Album timeline** shows items grouped by month with section headers (**sticky** headers optional — Phase 12)
+- [ ] Toggling between **Grid / Timeline / Videos** updates the view
+- [ ] Tapping an item **pushes** `PhotoDetailView`; **Back** returns to the album (Instagram-style)
+- [ ] PhotoDetailView shows **still / Live / video** appropriately (Live motion in detail; **video** plays inline)
+- [ ] Thumbnails load asynchronously (no UI freeze)
+- [ ] Empty state uses **"Import your media to start"** when the **whole** album is empty; **Videos** uses **"No videos yet"** (+ subtitle) when the album has items but **no** video rows
+- [ ] **Remove from album** (context menu / detail menu) only deletes **`PhotoEntry`**; copy confirms **Apple Photos** is untouched
+- [ ] **Top-trailing content `+`** (Phase 4) still reaches import from Home; **Grid / Timeline / Videos** do not add a second conflicting FAB or duplicate `+` in the nav bar
+
+---
+
+---
+
+# PHASE 5.5 — CaviraTheme (Ranger)
+**Build tracker:** ✅ Complete
+
+### Goal: One canonical dark visual system for Cavira — **Ranger** tokens in **`CaviraTheme`**, global UIKit chrome, **`AccentColor`** = **`#D4B96A`**, and SwiftUI surfaces wired to tokens (no ad-hoc colours outside `CaviraTheme.swift`). **No** light mode, **no** system appearance toggle, **no** multi-palette “theme picker” in later phases unless explicitly reopened in **Phase 12**.
+
+---
+
+### Cursor Prompt — Phase 5.5
+
+```
+Ship the Ranger visual system as Cavira’s only v1 skin.
+
+## Theme/CaviraTheme.swift (new)
+- Define **`enum CaviraTheme`** (or `struct` if you prefer) with **every colour from `ranger_theme.md` using `Color(hex: "#……")` — hex strings must match the markdown exactly character-for-character.
+- Include nested **Typography**, **Radius**, **Spacing** per the spec.
+- Add **`applyGlobalChrome()`** using `UITabBar.appearance()`, `UINavigationBar.appearance()`, `UISegmentedControl.appearance()`, `UITableView.appearance()` (and any other UIKit chrome that still shows through SwiftUI) so system controls match Ranger.
+- Keep the **`Color` + hex parser** in this file only — nowhere else in the app should parse hex strings.
+
+## CaviraApp.swift
+- `import UIKit`
+- Call **`CaviraTheme.applyGlobalChrome()`** from `init()` before first frame.
+
+## RootView.swift
+- Behind **`TabView`**: full-screen **`CaviraTheme.backgroundPrimary`**.
+- **`.preferredColorScheme(.dark)`** — v1 is Ranger-dark only; do **not** wire **`AppSettings.appearanceMode`** yet (document as deferred to Phase 12 if product wants it).
+- **`.tint(CaviraTheme.accent)`** on the root hierarchy.
+
+## Assets.xcassets/AccentColor
+- Set sRGB to **`#D4B96A`** (Ranger accent) so system **`Color.accentColor`** matches **`CaviraTheme.accent`**.
+
+## Views
+- Migrate Home (**Grid \| Timeline \| Videos**), grid, timeline, thumbnails, empty states, import sheet, placeholder tabs, and photo detail chrome to **`CaviraTheme`** tokens (backgrounds, text hierarchy, progress **`.tint(accent)`**, toolbar backgrounds where needed).
+- **`ImportOptionsSheet`:** hide default form material (**`.scrollContentBackground(.hidden)`**), use **`backgroundSecondary`** / **`surfaceCard`** rows, **Cancel** = secondary text colour, **Import** = accent semibold.
+
+## Xcode project
+- Add **`Theme/CaviraTheme.swift`** to the **Cavira** target (Compile Sources).
+
+## Explicit non-goals (do not build now)
+- No **light mode** or **System** appearance from Settings.
+- No **`ThemePalette`**, army green / black / white theme switcher, or second colour system.
+```
+
+---
+
+### Phase 5.5 Test Checklist
+- [ ] **`CaviraTheme`** exists; **all** hex literals match **`ranger_theme.md`**
+- [ ] **`AccentColor`** asset matches **`#D4B96A`**
+- [ ] **`applyGlobalChrome()`** runs at launch; tab bar + nav bar + segmented control read as Ranger (not raw iOS defaults)
+- [ ] **`RootView`** uses **`backgroundPrimary`**, **`.preferredColorScheme(.dark)`**, **`.tint(accent)`**
+- [ ] Home, grid, timeline, import sheet, placeholders, and detail loaders use theme tokens (no stray `Color(red:…)` / hex outside `CaviraTheme.swift`)
+- [ ] Project file includes **`CaviraTheme.swift`** in the app target
+
+---
+
+---
+
+# PHASE 6 — Events & Calendar
+**Build tracker:** ✅ Complete
+
+### Goal: Users can create **Events** (named photo groups / occasions), add photos/videos to them, and view them. The **Calendar** tab shows a **month view** driven by **read-only `PHAsset` queries** (all library activity by day — **not** limited to `PhotoEntry` rows, and **not** requiring bulk import at launch). From that surface, the user can **port** picks into Cavira’s **Home** subset / import flow (see **Cavira UX direction → Calendar tab**).
+
+**Stories linkage:** **`Event`** content must be **linkable from / into Stories** (data model + navigation — detail in Phase 9 as needed).
+
+---
+
+### Cursor Prompt — Phase 6
+
+```
+Build the Events feature and the Calendar month surface (tab is user-facing "Calendar"). An Event is a named group of photos (like a holiday or occasion).
+
+## Views/Events/EventsListView.swift — full implementation
+
+- @Query var events: [Event] sorted by startDate descending
+- List or LazyVStack of EventCardView components
+- Each card shows: cover photo (first photo in event, or placeholder), event title, date range, photo count badge
+- Pinned events shown at top with a pin icon
+- Toolbar button: "New Event" → sheet presenting CreateEditEventView
+- Empty state: "Create your first event to organise photos"
+- Tap event → navigate to EventDetailView
+
+## Views/Events/EventCardView.swift (Component)
+- Rounded rectangle card
+- Left side: square thumbnail (100x100) from cover photo or placeholder
+- Right side: title (bold), date range (subtitle), "X photos" count
+- Pin icon overlay in top-right if isPinned
+
+## Views/Events/EventDetailView.swift
+
+- NavigationStack with event.title as title
+- Header: event description (if set), date range
+- LazyVGrid photo grid (same 3-column style as GridView) of photos in this event
+- Toolbar: Edit Event button → CreateEditEventView only (no import `+` in the nav bar). **Top-trailing content overlay `+`** to add photos/videos (same placement rule as Home).
+- On **`+`**: trigger the same import flow as Phase 4 with this **event** pre-selected
+- Tap photo → PhotoDetailView
+- Long press photo → context menu with "Remove from event" option
+
+## Views/Events/CreateEditEventView.swift
+
+- Works for both Create and Edit (pass nil event for create, existing event for edit)
+- Fields:
+  - Title (required, TextField)
+  - Description (optional, multiline TextEditor)
+  - Start date (DatePicker)
+  - End date (optional, DatePicker, toggle to enable)
+  - **Pin** is **not** in this form — user pins from **`EventDetailView`** (toolbar).
+  - **Cover photo** picker when editing and the occasion has **≥ 2** linked photos (`coverPhotoId`).
+- "Save" button: creates or updates Event in SwiftData
+- "Delete Event" button (edit mode only): deletes event but does NOT delete photos — just unlinks them (set photo.event = nil for all photos in event)
+
+## Update ImportOptionsSheet (Phase 4):
+The "Add to an event" picker lists real **`Event`** rows from SwiftData. **`presetEvent`**: when importing from **`EventDetailView`**, lock the sheet to that occasion (hide toggle) and pass the event into **`PhotoImportService`** (new rows + **re-link** existing album rows that match picked assets).
+
+## Update PhotoDetailView (Phase 5):
+Tapping the occasion name uses **`NavigationLink(value: event.id)`**; the owning **`NavigationStack`** resolves **`UUID`** as photo vs event (**Home**: photo first; **Calendar**: event first).
+
+## PhotoLibraryService (Phase 2 extension):
+**`assetCountsByDayInMonth(containing:)`** — read-only **`PHAsset`** counts per calendar day (images + videos) for the month grid.
+```
+
+---
+
+### Phase 6 Test Checklist
+- [ ] **Calendar** tab shows month grid + per-day **Photos** counts; user can use it toward selecting assets for Cavira / Home
+- [ ] User-created **Events** list / detail works; events can link into **Stories** where designed
+- [ ] Create new event form works — saves to SwiftData
+- [ ] EventDetailView shows correct photos for that event
+- [ ] Adding photos during import correctly assigns them to the selected event
+- [ ] "Add more photos" **top-trailing content `+`** in EventDetailView works (not in the nav bar)
+- [ ] "Remove from event" context menu unlinks photo without deleting it
+- [ ] Editing an event saves changes
+- [ ] Deleting an event unlinks photos (doesn't delete them)
+- [ ] Pinned events appear at top
+
+---
+
+---
+
+# PHASE 6.1 — Calendar year / month navigation
+**Build tracker:** ✅ Complete
+
+### Goal: Faster navigation than **month-by-month chevrons** alone — e.g. **year picker**, **month picker**, or a compact **two-level** control so users can jump the **library activity** grid to arbitrary months without excessive tapping.
+
+### Shipped (repo)
+- **`LibraryMonthCalendarView`:** Tapping the **month title** (with chevron affordance) presents a sheet: **graphical `DatePicker`** (wide year/month jump), **Jump to today’s month**, **Cancel** / **Go**. **Prev/next month** buttons unchanged. `displayedMonth` is normalised to the **first day** of the chosen calendar month (local calendar).
+- **`EventsListView`:** Unchanged API; **`.task(id: displayedMonth)`** still reloads **`assetCountsByDayInMonth(containing:)`** when the user confirms a jump.
+
+### Cursor Prompt — Phase 6.1 (outline)
+
+```
+Extend `LibraryMonthCalendarView` / `EventsListView`:
+- Add UI to jump **year** and **month** explicitly (system `DatePicker` in `.compact` / `.graphical` wheels, or custom menu).
+- Keep existing per-day counts behaviour; refresh counts when `displayedMonth` changes.
+- Stay on **read-only `PHAsset`** counts (no SwiftData bulk import).
+```
+
+### Phase 6.1 Test Checklist
+- [ ] User can change **year** without tapping prev-month 12 times
+- [ ] User can change **month** within the selected year intuitively
+- [ ] Counts refresh correctly after jumps (`assetCountsByDayInMonth`)
+
+---
+
+---
+
+# PHASE 7 — Tagging (Location, People, Custom)
+**Build tracker:** ⏳ Not started
+
+### Goal: Users can tag photos with places, contacts, and free text. Tags are searchable.
+
+---
+
+### Cursor Prompt — Phase 7
+
+```
+Build the full tagging system. Tags are applied to PhotoEntry records.
+
+## Views/Photo/EditTagsSheet.swift
+
+A sheet that slides up from PhotoDetailView. Organised into 3 sections:
+
+### Section 1: Location Tag
+- Search field bound to `@Environment(\.appServices).locationSearch`
+- As user types, `LocationSearchService.search(query:)` updates suggestions (Completer + debounce from Phase 2)
+- Each row shows place name + subtitle; coordinates fill in after **`resolveSelection(id:)`** runs when the user taps a row (Instagram-style: suggestion first, then MapKit resolution)
+- Tap resolved row → create or reuse a `LocationTag` (name, lat/lon, `mapKitPlaceID` when iOS 18+ provides it), assign to `photo.locationTag`
+- Show currently applied tag as a chip with an "×" remove button
+- "Search powered by Apple Maps" attribution (required by MapKit terms)
+
+### Section 2: People Tags
+- Search field bound to `@Environment(\.appServices).contacts`
+- Results show contact avatar (from thumbnailData or initials fallback) + name
+- Tap to add — multiple people can be tagged
+- Show applied people as a horizontal scroll of chips with avatar + name + "×"
+- If Contacts permission not granted: show "Allow Contacts access" button that calls ContactsService.requestAuthorization()
+
+### Section 3: Custom Tags
+- TextField: user types a tag and presses return or comma to add
+- Show applied tags as chips
+- Chips are deletable with "×"
+
+## Views/Components/TagChipView.swift
+
+```swift
+struct TagChipView: View {
+    var label: String
+    var icon: String? = nil     // SF Symbol name, optional
+    var onRemove: (() -> Void)? = nil  // if nil, chip is non-interactive (display only)
+    // Pill shape, grey background, small font, optional remove button
+}
+```
+
+## Update PhotoDetailView:
+- Add a tags section below the photo:
+  - Location chip (MapPin SF Symbol) if locationTag is set
+  - People chips if peopleTags is not empty  
+  - Custom tag chips if customTags is not empty
+- Tapping any tag or an "Edit Tags" button opens EditTagsSheet
+- All tags are display-only in the detail view (editing happens in the sheet)
+
+## LocationSearchService (Phase 7 wiring):
+Reuse the Phase 2 implementation; ensure list rows call `resolveSelection` before persisting a `LocationTag`. If the query is empty, `clear()` runs immediately.
+
+## Contacts permission handling:
+If the user denies Contacts, show a non-blocking banner in the People section explaining how to enable it in Settings. Do not block the rest of the sheet.
+```
+
+---
+
+### Phase 7 Test Checklist
+- [ ] EditTagsSheet opens from PhotoDetailView
+- [ ] Location search returns real results from MapKit
+- [ ] Selecting a location creates a LocationTag and assigns it to the photo
+- [ ] Location tag appears as a chip in EditTagsSheet and PhotoDetailView
+- [ ] Removing a location tag clears it from the photo
+- [ ] Contacts search works (requires Contacts permission)
+- [ ] Multiple people can be tagged on one photo
+- [ ] Person chips show avatar or initials fallback
+- [ ] Custom tags can be added with return/comma
+- [ ] Custom tag chips can be removed
+- [ ] All tags persist after closing and reopening the sheet
+
+---
+
+---
+
+# PHASE 8 — Search
+**Build tracker:** ⏳ Not started
+
+### Goal: Users can search across their **Cavira digital album** and metadata — e.g. **location**, **person**, “**everything with this person**”, **family**-style groupings, **selfies** (via tags / future heuristics), custom tags, notes, dates, linked **Events** / **Stories**.
+
+---
+
+### Cursor Prompt — Phase 8
+
+```
+Build the Search feature. Users can find photos by location, person, custom tag, date range, and other metadata (see Goal — support rich recall like family sets and selfies where tagging allows).
+
+## Views/Search/SearchView.swift — full implementation
+
+Layout:
+- Search bar at top (SwiftUI searchable or custom TextField)
+- Filter chips row below search bar: "Location" | "People" | "Date" | "Tag" (tappable, multi-selectable)
+- Results grid below (same PhotoThumbnailView 3-column grid)
+- Result count label: "X photos found"
+
+Search logic:
+- Text input searches across: locationTag.name, personTag.displayName, customTags, event.title, photo.notes
+- Filter chips narrow results further
+- "Location" chip: show a location picker sheet (reuse LocationSearchService) to filter to a specific place
+- "People" chip: show a contacts search sheet to filter to a specific person
+- "Date" chip: show a date range picker (start date + end date)
+- "Tag" chip: show a free-text tag filter field
+
+All filtering happens client-side using SwiftData @Query or in-memory filter on fetched results. For v1, fetch all photos and filter in Swift — do not use complex NSPredicate unless the dataset is clearly too large.
+
+## Views/Search/FilterResultsView.swift
+Reuse the same 3-column grid pattern from GridView. On photo tap → PhotoDetailView.
+
+## Views/Components/DateHeaderView.swift
+(Reusable for both **`AlbumTimelineView`**-style grouping and any grouped search results)
+```swift
+struct DateHeaderView: View {
+    var date: Date
+    var style: DateHeaderStyle = .monthYear  // .monthYear | .fullDate
+    // Displays "June 2024" or "12 June 2024" as a bold section label
+}
+```
+
+Search should feel instant for typical library sizes (up to ~2000 photos). No loading spinner needed unless filtering takes >200ms.
+```
+
+---
+
+### Phase 8 Test Checklist
+- [ ] Typing in search bar filters photos in real time
+- [ ] Location filter opens a place search and filters correctly
+- [ ] People filter opens contact search and filters correctly
+- [ ] Date range filter works
+- [ ] Custom tag filter works
+- [ ] Tapping a result photo opens PhotoDetailView
+- [ ] Result count label is accurate
+- [ ] Clearing search shows all photos again
+- [ ] Empty state shown if no results match
+
+---
+
+---
+
+# PHASE 9 — Stories (Viewer & Builder)
+**Build tracker:** ⏳ Not started
+
+### Goal: Users can create Instagram-style Stories from their photos. Full overlay editing.
+
+**List UX (per Cavira UX direction):** **StoriesListView** becomes a **horizontal shelf of cards** (separators between cards); each card uses a **full-bleed background image** with **title text on top**; **toolbar `+`** (top-right) creates a new story. **`Event`** rows should be **linkable** into stories (navigation / model link — wire with Phase 6).
+
+---
+
+**This is the most complex phase. Take it slowly and test after each sub-step.**
+
+---
+
+### Cursor Prompt — Phase 9
+
+```
+Build the Stories feature. This is the most complex part of the app. Build it in this order:
+
+Product layout reminders (see Cavira UX direction):
+- Shelf of story cards; cover defaults to first slide but user can pick another.
+- Link stories to Events where applicable.
+
+## Step 9a — Story Viewer first (simpler, validates data model)
+
+### Views/Stories/StoryViewerView.swift
+- Full screen, black background
+- Displays slides in order using TabView with .tabViewStyle(.page) and indexDisplayMode .never
+- Each slide: photo fills screen (.scaledToFill), text overlays and stickers rendered on top
+- Progress bar at top: thin line segmented into N segments (one per slide), current fills from left to right
+- Auto-advance: each slide shows for 5 seconds then moves to next (use Timer)
+- Tap left half: go back one slide. Tap right half: go forward one slide.
+- Pause on long press (hold finger down)
+- Close button (×) in top-right
+- Story title shown at top-left with a subtle gradient behind it
+
+### Views/Stories/SlideRenderView.swift (reusable component)
+Renders a single StorySlide:
+- Background: photo (reference or copy, loaded via PhotoImageLoader) fills frame
+- Text overlays: positioned using normalised coordinates (positionX * frameWidth, positionY * frameHeight)
+- Sticker overlays: same positioning, scale applied
+- In viewer mode: all overlays are non-interactive (display only)
+- In editor mode: overlays are draggable/resizable (see Step 9b)
+
+## Step 9b — Story Builder
+
+### Views/Stories/StoryBuilderView.swift
+Navigation flow:
+1. SlidePickerView — pick photos → creates StorySlide records
+2. For each slide: SlideEditorView — add overlays
+3. StoryPreviewView — preview before saving
+4. Save → creates Story record in SwiftData
+
+### Views/Stories/SlidePickerView.swift
+- Grid of all PhotoEntry records (3-column, same PhotoThumbnailView)
+- Multi-select enabled — tap to select/deselect, selected cells show a checkmark badge
+- Reorder selected photos with a drag handle list at the bottom (or a horizontal scroll strip)
+- "Next" button → proceeds to slide editors
+
+### Views/Stories/SlideEditorView.swift
+Per-slide editor — this is the core creative screen:
+
+Layout:
+- Slide preview fills top ~65% of screen (SlideRenderView in edit mode)
+- Bottom toolbar has:
+  - "Text" button → adds a new TextOverlay with default position centre
+  - "Sticker" button → opens sticker picker sheet
+  - "Background colour" button → colour picker for slides without photos (optional in v1)
+  - Navigation: "< Prev Slide" | slide counter "2 / 5" | "Next Slide >"
+
+Text overlay interaction:
+- Tap a text overlay to select it (show handles)
+- DragGesture to move (update positionX/Y as normalised values)
+- Double-tap to edit the text (show a TextField or TextEditor overlay)
+- Pinch gesture to resize (update fontSize or scale)
+- Rotation gesture to rotate
+- Selected overlay shows a delete button (trash icon)
+
+Sticker overlay interaction:
+- Same as text: drag to move, pinch to scale, rotate gesture
+- Delete button when selected
+
+### Views/Stories/StickerPickerSheet.swift
+- Grid of available stickers
+- For v1: use a curated set of SF Symbols rendered as images (sun.max, heart.fill, star.fill, camera.fill, map.fill, airplane, fork.knife, figure.walk, moonphase.full.moon, cloud.sun, music.note, flame, leaf, snowflake — at minimum 20)
+- Tap sticker → adds a StickerOverlay to the current slide at centre position
+
+### Views/Stories/StoryPreviewView.swift
+- Runs the full StoryViewerView in preview mode (no auto-advance, manual only)
+- "Edit" button to go back
+- "Save Story" button:
+  - Shows a sheet to set: Story title (required), cover photo (pick from slides), pin to profile toggle
+  - Saves Story + all StorySlide records to SwiftData
+
+## Update StoriesListView.swift (Phase 3 placeholder):
+- @Query var stories: [Story] sorted by lastEditedDate descending
+- Stories shown as cards: cover photo + title + slide count + date
+- Pinned stories at top with pin badge
+- Tap → StoryViewerView
+- "New Story" button → StoryBuilderView
+- Long press → context menu: Pin/Unpin, Edit, Delete
+
+## Update ProfileView (placeholder from Phase 5):
+- Header: photo count, story count, event count
+- Horizontal scroll strip of pinned Stories (shown as circles with cover photo — like Instagram story bubbles)
+- Below: full photo grid (same as GridView)
+- Pinned Events shown as a horizontal scroll of EventCardView below stories strip
+```
+
+---
+
+### Phase 9 Test Checklist
+- [ ] StoryViewerView auto-advances slides every 5 seconds
+- [ ] Progress bar advances correctly
+- [ ] Tap left/right to navigate slides manually
+- [ ] Long press pauses auto-advance
+- [ ] Text overlays render at correct positions in viewer
+- [ ] Sticker overlays render at correct positions in viewer
+- [ ] SlidePickerView multi-select works
+- [ ] Text overlay can be added, dragged, rotated, resized, deleted in editor
+- [ ] Sticker overlay can be added, dragged, rotated, resized, deleted in editor
+- [ ] Story saves correctly with title and cover photo
+- [ ] StoriesListView shows saved stories
+- [ ] Tapping a story opens the viewer
+- [ ] Pinned stories appear in ProfileView story bubbles
+- [ ] Profile view shows correct counts
+
+---
+
+---
+
+# PHASE 10 — Settings & Storage Management
+**Build tracker:** ⏳ Not started
+
+### Goal: Settings screen fully functional for **storage** and **non-appearance** preferences. **Visual identity stays `CaviraTheme` / Ranger** — Phase 10 does **not** add light mode, system appearance, or alternate colour palettes (those belong in **Phase 12** only if product reopens them).
+
+---
+
+### Cursor Prompt — Phase 10
+
+```
+Build the full Settings screen and wire up app-wide settings.
+
+## Views/Settings/SettingsView.swift — full implementation
+
+Sections:
+
+### Storage
+- **v1:** Hide or grey out a "Copy to Cavira" default — imports are **reference-only**. Optionally show a short note: "Photos stay in your library; Cavira does not duplicate full-resolution files in v1."
+- "On-device copy storage" — show `appServices.photoStorage.totalStorageUsed()` (via `Environment`); with `NoOpPhotoStorage` this reads **0 MB** until a future disk-backed implementation exists.
+- "Manage stored photos" → `StorageSettingsView` (mostly empty state in v1; keep the navigation row for future phases)
+
+### Display  
+- "Default home view" picker: **Grid / Timeline / Videos** (remove Profile option per Cavira UX direction; migrate `AppSettings.defaultHomeView` if it was `.profile`).
+- **Do not** add an **Appearance** (Light / Dark / System) picker or **App theme** palette picker in Phase 10 — **`CaviraTheme`** is the only v1 skin (**Phase 5.5**). If `AppSettings.appearanceMode` still exists in the model, leave it **unused** in UI or hide the field until Phase 12.
+
+### About
+- App name: Cavira
+- Version: read from Bundle.main.infoDictionary
+- "Built for privacy. Everything stays on your device."
+
+## Views/Settings/StorageSettingsView.swift
+- **v1:** If there are no `localCopy` rows, show a single empty state: "Cavira is not storing duplicate photo files on this device."
+- (Future phase, when `localCopy` exists again): list `localCopy` entries, sizes, swipe actions, and bulk "convert to reference" as originally designed.
+
+## Wire up default home view:
+In HomeScreen.swift, initialise selectedView from AppSettings.defaultHomeView on appear.
+
+## Wire up default import mode:
+In v1, `AppSettings.defaultStorageMode` should remain `.reference` (or the UI omits the picker). If you still surface the setting for forward compatibility, it must not enable disk copies until a future phase implements `PhotoStorageServing` with real file I/O.
+```
+
+---
+
+### Phase 10 Test Checklist
+- [ ] Settings screen shows all sections as specified (Storage, Display without appearance/theme pickers, About)
+- [ ] Import behaviour stays reference-only in v1; any `defaultStorageMode` UI matches that constraint
+- [ ] **No** regression: app chrome still follows **`CaviraTheme`** + **`applyGlobalChrome()`** — Phase 10 does not introduce a second theme system
+- [ ] Changing default home view is reflected when switching to the Home tab
+- [ ] On-device copy storage line shows the value from injected `photoStorage` (0 MB in v1)
+- [ ] StorageSettingsView shows the v1 empty state when there are no `localCopy` entries
+- [ ] (Deferred) Deleting a future on-disk copy would go through `PhotoStorageServing` — not required in v1
+- [ ] App version shows correctly
+
+---
+
+---
+
+# PHASE 11 — Profile View & Pinning
+**Build tracker:** ⏳ Not started
+
+### Goal: ProfileView is fully built. Pinning events and stories works throughout the app.
+
+---
+
+### Cursor Prompt — Phase 11
+
+```
+Complete the ProfileView and implement pinning throughout the app.
+
+## Views/Home/ProfileView.swift — full implementation
+
+Layout (top to bottom):
+1. Stats bar: "X Photos  |  X Events  |  X Stories" — large numbers, small labels
+2. Pinned Stories strip: horizontal ScrollView of story bubble circles (80x80 each)
+   - Circle shows cover photo with story title below (truncated to 1 line)
+   - If no pinned stories: hide this section
+   - Tap → StoryViewerView
+3. Pinned Events strip: horizontal ScrollView of compact EventCardView
+   - If no pinned events: hide this section
+   - Tap → EventDetailView
+4. "Your Photos" header with sort toggle (capturedDate asc/desc)
+5. Full photo grid (same LazyVGrid 3-column as GridView)
+
+## PinnedBadgeView.swift (Component)
+```swift
+struct PinnedBadgeView: View {
+    // Small pin SF Symbol badge (pin.fill) shown in corner of pinned content cards
+    // Yellow/gold tint, small, overlaid on top-right of card
+}
+```
+
+## Pinning interactions:
+- Events: long press on EventCardView in EventsListView → context menu → "Pin to Profile" / "Unpin"
+- Stories: long press on story card in StoriesListView → context menu → "Pin to Profile" / "Unpin"
+- Both use event.isPinned / story.isPinned Bool in SwiftData
+
+## Custom layout note:
+For v1, the "custom layout" means the user controls which events and stories are pinned, and those float to the top of ProfileView. This is the extent of custom layout in v1. Full drag-to-reorder pinned items can be added in v2.
+
+Make sure ProfileView updates reactively when pins change (use @Query with appropriate sort descriptors).
+```
+
+---
+
+### Phase 11 Test Checklist
+- [ ] ProfileView shows correct counts for photos, events, stories
+- [ ] Pinned stories appear as circular bubbles in the stories strip
+- [ ] Pinned events appear in the events strip
+- [ ] Tapping story bubble opens StoryViewerView
+- [ ] Tapping event card opens EventDetailView
+- [ ] Pinning/unpinning an event via long press updates ProfileView instantly
+- [ ] Pinning/unpinning a story via long press updates ProfileView instantly
+- [ ] Photo grid in ProfileView matches the same photos as GridView
+- [ ] Sort toggle on photo grid works
+
+---
+
+---
+
+# PHASE 12 — Polish, Edge Cases & Final QA
+**Build tracker:** ⏳ Not started
+
+### Goal: App is stable, handles edge cases, and feels complete for v1. **Optional** product/engineering items that were explicitly deferred from v1: **appearance** (light / system) and **dark-mode tint** fine-tuning for Ranger, plus an unlikely migration from **UIKit global appearances** to **SwiftUI-only** tab/nav chrome — all **only** if you choose to schedule them here.
+
+---
+
+### Cursor Prompt — Phase 12
+
+```
+Final polish pass. Address edge cases, add missing feedback, and ensure a consistent experience.
+
+## Optional — appearance & Ranger tuning (only if product approves)
+- **`AppSettings.appearanceMode`:** if light / system / dark becomes a product requirement, wire **`.preferredColorScheme`** from settings and audit **every** screen for contrast (today the app assumes **forced dark** + Ranger tokens).
+- **Dark-mode tint pass:** optional small adjustments to **`CaviraTheme`** tokens or materials so Ranger feels best under true system dark vs the current “always dark” shell — **hex discipline:** any change must be a deliberate design update to **`ranger_theme.md`** and **`CaviraTheme.swift` together**.
+- **SwiftUI-only chrome:** optional experiment to replace UIKit **`appearance()`** styling with pure SwiftUI tab/nav styling if global side effects (e.g. previews) become painful — low priority.
+
+## Missing asset handling:
+In PhotoImageLoader, if a PHAsset referenced by localIdentifier no longer exists in the Photos library:
+- Return nil image
+- In PhotoThumbnailView: show a placeholder view with a "photo.badge.exclamationmark" SF Symbol and grey background
+- In PhotoDetailView: show a banner **"This photo is no longer in your Photos library."** with actions: **Remove from Cavira** (delete `PhotoEntry`) and, if helpful, **Open Photos** — v1 does **not** offer "make a private copy" (no duplicate storage).
+
+## Empty states — ensure every list/grid view has an appropriate EmptyStateView:
+- GridView / Album timeline / Videos-only grid: align with shipped copy — **"Import your media to start"** / **"No videos yet"** (or tuned variants) plus short subtitle where helpful
+- **Home album — sticky month headers:** if v1 shipped **non-sticky** timeline headers, evaluate **`List`/`Section`** or custom sticky chrome for the month-grouped timeline (parity with calendar-style apps)
+- Calendar list / month placeholder: copy matches **Calendar** tab intent (month + counts in Phase 6).
+- StoriesListView: "No stories yet. Create your first story."
+- SearchView (no results): "No photos match your search."
+- ProfileView (no pins): nudge message "Pin events and stories to see them here."
+
+## Loading states:
+- PhotoThumbnailView: show a grey placeholder during async load (already implemented, confirm it's smooth)
+- StoryViewerView: if slide photo hasn't loaded yet, show a subtle spinner — don't show a black frame
+
+## Import flow UI (polish pass on Phase 4 — picker + `ImportOptionsSheet`):
+The functional import pipeline ships in **Phase 4**; **Phase 12** refines how it *feels*:
+- **`PHPicker` / sheet presentation:** presentation style, safe areas, dismiss affordance, and transition into the follow-up sheet so it does not feel abrupt or “system default only.”
+- **`ImportOptionsSheet`:** clearer hierarchy (title, counts, reference-only explanation), spacing and typography aligned with the rest of the app, tappable row layout if useful, **accessibility** labels/hints, and feedback when **zero new** rows were added (duplicates skipped) — friendly copy, not only an alert.
+- **Large selections:** optional lightweight progress or “Importing…” state if many assets are saved in one go.
+- **Contrast:** verify materials and text on import screens against **`CaviraTheme`** (v1 remains Ranger-dark only unless optional appearance work above ships).
+
+## Transitions & animations:
+- HomeScreen view switcher: animate the transition between Grid / Timeline / Videos with `.animation(.easeInOut)`
+- Story viewer slide transition: use the default page swipe, ensure it's smooth
+- Sheet presentations: ensure all sheets have a visible drag handle
+
+## Data integrity:
+- If a Story has zero slides (edge case if user deleted all photos that were in slides): show a "This story has no photos" state in StoryViewerView instead of crashing
+- If an Event has zero photos: show empty state in EventDetailView
+- Ensure deleting a PhotoEntry that is used in StorySlides handles gracefully (set slide.photo = nil, show placeholder)
+
+## Performance:
+- Ensure LazyVGrid thumbnail loading is smooth — thumbnails should be 200x200 max
+- NSCache in PhotoImageLoader should have a reasonable limit (e.g. 50MB) to avoid memory pressure
+
+## App icon placeholder:
+Add a simple placeholder app icon (a gradient square with the letter "F" or a simple camera shape) to Assets.xcassets so the app doesn't show a blank icon in the simulator.
+
+Review the entire app for any obvious UI inconsistencies — font sizes, spacing, button sizes — and fix them. The app should feel like a polished v1.
+```
+
+---
+
+### Phase 12 Final QA Checklist
+- [ ] **Home timeline:** optional **sticky** month headers implemented or explicitly deferred with good UX on long feeds
+- [ ] **Import flow:** picker + `ImportOptionsSheet` GUI feels polished (layout, copy, transitions, duplicate-skip feedback) per **Import flow UI** above
+- [ ] Deleted photo shows placeholder with exclamationmark icon
+- [ ] All list/grid views have appropriate empty states
+- [ ] No crashes when deleting photos that appear in stories
+- [ ] Story with no photos shows graceful state
+- [ ] Animations between views are smooth
+- [ ] Thumbnail loading doesn't block UI
+- [ ] App icon appears in simulator
+- [ ] App reads correctly in the **shipped Ranger-dark** configuration; if optional **Phase 12** appearance work is **not** done, confirm **`.preferredColorScheme(.dark)`** + **`CaviraTheme`** still hold across all flows
+- [ ] All sheets have drag handles and can be dismissed
+- [ ] No memory warnings during normal use
+- [ ] App passes a full end-to-end walkthrough: import → tag → create event → build story → view on profile
+
+---
+
+---
+
+## Quick Reference — Phase Order
+
+| Phase | What gets built | Depends on |
+|---|---|---|
+| 1 | Models & project setup | Nothing |
+| 2 | Services | Phase 1 |
+| 3 | Tab shell & navigation | Phase 1 |
+| 4 | Photo & video import (reference-only, dedupe) | Phases 2, 3 |
+| 5 | Grid, `AlbumTimelineView`, **Videos** (video-only `GridView`), `PhotoDetailView`, album-only remove | Phase 4 |
+| 5.5 | `CaviraTheme` (Ranger), global UIKit chrome, `AccentColor`, themed surfaces | Phases 3–5 |
+| 6 | Events & Calendar (month grid, occasions, `EventDetailView`, import `presetEvent`) | Phases 4, 5 |
+| 6.1 | Calendar year/month navigation | Phase 6 |
+| 7 | Tagging | Phase 2, 5, 6 |
+| 8 | Search | Phases 5, 7 |
+| 9 | Stories | Phases 4, 5 |
+| 10 | Settings & storage (no alternate themes) | All prior phases |
+| 11 | Profile view & pinning | Phases 5, 6, 9 |
+| 12 | Polish & QA (+ optional appearance / tint / SwiftUI chrome) | All phases |
+
+
+*Document version 1.11 — Cavira iOS App. **Shipped:** Phases 1–6.1 + **Home Events segment** (see **Repo snapshot**). **Next:** Phase **7** (tagging). **Then:** Phases 8+. **Close v1:** Phase 12 + **Additional improvements** backlog. **Design note:** **`CaviraTheme`** / **`ranger_theme.md`** is the canonical v1 colour system; optional light/system appearance or palette work is **Phase 12** only, if approved. **Home:** toolbar segments **Grid \| Timeline \| Videos \| Events**; **Home +** matches **Calendar** list toolbar (`AlbumImportToolbarButton`).*
