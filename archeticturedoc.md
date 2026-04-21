@@ -61,7 +61,7 @@ Keep this table in sync with the Cavira codebase as phases finish. Each phase se
 | 6 — Events & Calendar (month + Photo counts + occasions) | ✅ Complete |
 | 6.1 — Calendar year/month navigation | ✅ Complete |
 | 7 — Tagging | 🚧 In progress |
-| 8 — Search | ⏳ Not started |
+| 8 — Search | 🚧 In progress |
 | 9 — Stories | ⏳ Not started |
 | 10 — Settings & storage | ⏳ Not started |
 | 11 — Profile & pinning | ⏳ Not started |
@@ -70,7 +70,7 @@ Keep this table in sync with the Cavira codebase as phases finish. Each phase se
 ---
 
 ## App Name: Cavira
-**Platform:** iOS 17+ (iPhone only in v1 — `TARGETED_DEVICE_FAMILY = 1`)  
+**Platform:** iOS 18+ (iPhone only in v1 — `TARGETED_DEVICE_FAMILY = 1`)  
 **Language:** Swift / SwiftUI  
 **Database:** SwiftData  
 **Photo access:** PHPhotoLibrary  
@@ -408,7 +408,7 @@ Do not create any views beyond that single placeholder root. Just models, enums,
 ### Cursor Prompt — Phase 2
 
 ```
-Implement core services under Services/ with iOS 17+ conventions: async/await, @MainActor where UI-adjacent state is published, Observation (@Observable) instead of ObservableObject where practical, and NO singletons — use dependency injection (see AppServices below). Do not create any new feature views beyond what already exists.
+Implement core services under Services/ with iOS 18+ conventions: async/await, @MainActor where UI-adjacent state is published, Observation (@Observable) instead of ObservableObject where practical, and NO singletons — use dependency injection (see AppServices below). Do not create any new feature views beyond what already exists.
 
 ## AppServices.swift + Environment
 - Define @MainActor @Observable final class AppServices holding: photoLibrary, photoImageLoader, photoStorage, locationSearch, contacts.
@@ -560,7 +560,7 @@ The app should compile and run. All 5 tabs tappable with placeholder text and co
 
 ---
 
-**Why before displaying photos:** Can't show a grid or timeline without `PhotoEntry` rows. Import is the entry point for curated album content. **Calendar** (Phase 6) still reads the **whole library** by date separately — no mass import on launch (see **Cavira UX direction → Calendar tab**).
+**Why before displaying photos:** Can't show a grid or timeline without `PhotoEntry` rows. **Add** (picker + Add sheet) is the entry point for curated album content. **Calendar** (Phase 6) still reads the **whole library** by date separately — no mass import on launch (see **Cavira UX direction → Calendar tab**).
 
 ---
 
@@ -583,12 +583,15 @@ Use a small coordinator pattern; dismiss picker after confirm.
 ## Views/Photo/ImportOptionsSheet.swift
 After the user picks assets, show this sheet before writing SwiftData:
 
-- Title: dynamic count — e.g. "Import 12 items" (photos + videos)
-- **v1:** Explain **reference-only**: items **stay in Apple Photos**; Cavira stores **organisation + metadata** and a **library identifier**, not a second copy of the file. No "Copy to Cavira" / no Application Support originals.
-- Toggle: "Add to an event" — if on, pick from existing `Event` rows (`@Query`); **create-new Event** can wait until Phase 6 if empty, or add a minimal inline create — match whatever Phase 6 prompt settles on.
-- Primary "Import" and "Cancel"
+- Title: dynamic count — e.g. **"Add 12 items"** (photos + videos)
+- **One-page Add flow order:** **Title → Location → People → Add to an event**
+  - **Title**: only when adding **1 item** (saved to `PhotoEntry.title`)
+  - **Location**: MapKit search + suggestion list; selecting a row creates/reuses a `LocationTag` and will be applied to all added items
+  - **People**: Contacts search (if permitted) + free-text add; selected tags are applied to all added items (with default placement)
+  - **Add to an event**: optional; create new event inline or pick existing; supports `presetEvent` lock when launched from `EventDetailView`
+- Primary **"Add"** and **"Cancel"**
 
-## Import logic (ViewModel or sheet-owned):
+## Add logic (ViewModel or sheet-owned):
 Use `@Environment(\.appServices)` → `PhotoLibraryService` + `ModelContext`.
 
 For each `PHPickerResult`:
@@ -601,7 +604,7 @@ For each `PHPickerResult`:
 
 ## Photo permission — app launch + import
 - On **first launch / root appearance** (e.g. `RootView.onAppear` or `CaviraApp` task): call **`PhotoLibraryService.requestAuthorization()`** (or a thin wrapper `requestAuthorisationIfNeeded() async -> Bool` that returns **true** for `.authorized` / `.limited`). **iOS persists** the user’s choice; optional **`AppSettings`** flag only for **UX copy** (“we’ve already asked”), not for security state.
-- If user denies / restricted: when they hit **Import** or `+`, show alert with **Open Settings** → `UIApplication.openSettingsURLString` (allowed; not a product “deep link”).
+- If user denies / restricted: when they hit **Add** or `+`, show alert with **Open Settings** → `UIApplication.openSettingsURLString` (allowed; not a product “deep link”).
 
 ## HomeScreen.swift — entry point (overlay `+`, not nav bar)
 - **`+`:** top-trailing on the **main content** (overlay / `ZStack`), **not** `ToolbarItem` / navigation bar. Tapping presents picker → `ImportOptionsSheet`. **Do not** use a bottom-right FAB for the primary add control.
@@ -626,7 +629,7 @@ End-to-end: after import, SwiftData contains one row per added library id; thumb
 - [ ] **Top-trailing `+` on Home content** (not navigation bar) starts picker → options sheet → save
 - [ ] (Optional) Centre tab **`+`** starts the same flow from another tab
 - [ ] Picker supports **multi-select** of **stills, Live Photos, and videos**
-- [ ] Import sheet explains **reference-only** (no duplicate files on disk)
+- [ ] Add sheet shows **Title → Location → People → Add to an event** in that order (Title only for 1 item)
 - [ ] Each saved `PhotoEntry` has `storageMode == .reference`, `localIdentifier` set, `storedFilename == nil`, correct **`mediaKind`**, correct **`isLivePhoto`**
 - [ ] **Re-importing the same asset** does **not** create a second `PhotoEntry`
 - [ ] `capturedDate` matches library creation date for a known asset
@@ -774,7 +777,7 @@ Ship the Ranger visual system as Cavira’s only v1 skin.
 
 ## Views
 - Migrate Home (**Grid \| Timeline \| Videos**), grid, timeline, thumbnails, empty states, import sheet, placeholder tabs, and photo detail chrome to **`CaviraTheme`** tokens (backgrounds, text hierarchy, progress **`.tint(accent)`**, toolbar backgrounds where needed).
-- **`ImportOptionsSheet`:** hide default form material (**`.scrollContentBackground(.hidden)`**), use **`backgroundSecondary`** / **`surfaceCard`** rows, **Cancel** = secondary text colour, **Import** = accent semibold.
+- **`ImportOptionsSheet`:** hide default form material (**`.scrollContentBackground(.hidden)`**), use **`backgroundSecondary`** / **`surfaceCard`** rows, **Cancel** = secondary text colour, **Add** = accent semibold.
 
 ## Xcode project
 - Add **`Theme/CaviraTheme.swift`** to the **Cavira** target (Compile Sources).
@@ -843,6 +846,8 @@ Build the Events feature and the Calendar month surface (tab is user-facing "Cal
 - Works for both Create and Edit (pass nil event for create, existing event for edit)
 - Fields:
   - Title (required, TextField)
+  - Location (optional): reuse the same MapKit search UI as the Home **Add** sheet; saves to `Event.locationTag`
+  - People (optional): pick from Contacts or add free-text; saves to `Event.peopleTags`
   - Description (optional, multiline TextEditor)
   - Start date (DatePicker)
   - End date (optional, DatePicker, toggle to enable)
@@ -985,7 +990,7 @@ If the user denies Contacts, show a non-blocking banner in the People section ex
 ---
 
 # PHASE 8 — Search
-**Build tracker:** ⏳ Not started
+**Build tracker:** 🚧 In progress
 
 ### Goal: Users can search across their **Cavira digital album** and metadata — e.g. **location**, **person**, “**everything with this person**”, **family**-style groupings, **selfies** (via tags / future heuristics), custom tags, notes, dates, linked **Events** / **Stories**.
 
@@ -999,18 +1004,20 @@ Build the Search feature. Users can find photos by location, person, custom tag,
 ## Views/Search/SearchView.swift — full implementation
 
 Layout:
-- Search bar at top (SwiftUI searchable or custom TextField)
-- Filter chips row below search bar: "Location" | "People" | "Date" | "Tag" (tappable, multi-selectable)
+- Search bar at top (SwiftUI searchable)
+- Filter chips row below search bar: "Location" | "People" | "Date" | "Event" (tappable)
+- Sorting: toggle **Newest** / **Oldest**
 - Results grid below (same PhotoThumbnailView 3-column grid)
 - Result count label: "X photos found"
 
 Search logic:
-- Text input searches across: locationTag.name, personTag.displayName, customTags, event.title, photo.notes
+- Scope: search only Cavira’s **album** (`PhotoEntry` in SwiftData), not the full Photos library.
+- Text input searches across: `photo.title`, `photo.notes`, `locationTag.name`, `personTag.displayName`, `event.title`
 - Filter chips narrow results further
-- "Location" chip: show a location picker sheet (reuse LocationSearchService) to filter to a specific place
-- "People" chip: show a contacts search sheet to filter to a specific person
+- "Location" chip: pick from existing `LocationTag` rows (quick picker)
+- "People" chip: pick from existing `PersonTag` rows (includes free-text people, not only Contacts)
 - "Date" chip: show a date range picker (start date + end date)
-- "Tag" chip: show a free-text tag filter field
+- "Event" chip: pick from existing `Event` rows
 
 All filtering happens client-side using SwiftData @Query or in-memory filter on fetched results. For v1, fetch all photos and filter in Swift — do not use complex NSPredicate unless the dataset is clearly too large.
 
@@ -1034,10 +1041,11 @@ Search should feel instant for typical library sizes (up to ~2000 photos). No lo
 
 ### Phase 8 Test Checklist
 - [ ] Typing in search bar filters photos in real time
-- [ ] Location filter opens a place search and filters correctly
-- [ ] People filter opens contact search and filters correctly
+- [ ] Location filter picker filters correctly
+- [ ] People filter picker filters correctly
 - [ ] Date range filter works
-- [ ] Custom tag filter works
+- [ ] Event filter works
+- [ ] Sorting toggle (Newest/Oldest) works
 - [ ] Tapping a result photo opens PhotoDetailView
 - [ ] Result count label is accurate
 - [ ] Clearing search shows all photos again
