@@ -47,7 +47,9 @@
 		F100PH0222B8A8A2D00A0A001 /* AlbumTimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100PH0022B8A8A2D00A0A001 /* AlbumTimelineView.swift */; };
 		F100PH0232B8A8A2D00A0A001 /* PhotoThumbnailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100PH0032B8A8A2D00A0A001 /* PhotoThumbnailView.swift */; };
 		F100PH0242B8A8A2D00A0A001 /* EmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100PH0042B8A8A2D00A0A001 /* EmptyStateView.swift */; };
+		F300TG0122B8A8A2D00A0A001 /* TagChipView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F300TG0112B8A8A2D00A0A001 /* TagChipView.swift */; };
 		F100PH0252B8A8A2D00A0A001 /* PhotoDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100PH0052B8A8A2D00A0A001 /* PhotoDetailView.swift */; };
+		F300TG0222B8A8A2D00A0A001 /* EditTagsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = F300TG0212B8A8A2D00A0A001 /* EditTagsSheet.swift */; };
 		F100TH0122B8A8A2D00A0A001 /* CaviraTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100TH0112B8A8A2D00A0A001 /* CaviraTheme.swift */; };
 		F200EV0122B8A8A2D00A0A001 /* EventCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F200EV0112B8A8A2D00A0A001 /* EventCardView.swift */; };
 		F200EV0222B8A8A2D00A0A001 /* CreateEditEventView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F200EV0212B8A8A2D00A0A001 /* CreateEditEventView.swift */; };
@@ -100,6 +102,8 @@
 		F100PH0032B8A8A2D00A0A001 /* PhotoThumbnailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoThumbnailView.swift; sourceTree = "<group>"; };
 		F100PH0042B8A8A2D00A0A001 /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
 		F100PH0052B8A8A2D00A0A001 /* PhotoDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoDetailView.swift; sourceTree = "<group>"; };
+		F300TG0112B8A8A2D00A0A001 /* TagChipView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagChipView.swift; sourceTree = "<group>"; };
+		F300TG0212B8A8A2D00A0A001 /* EditTagsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditTagsSheet.swift; sourceTree = "<group>"; };
 		F100TH0112B8A8A2D00A0A001 /* CaviraTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaviraTheme.swift; sourceTree = "<group>"; };
 		F200EV0112B8A8A2D00A0A001 /* EventCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventCardView.swift; sourceTree = "<group>"; };
 		F200EV0212B8A8A2D00A0A001 /* CreateEditEventView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateEditEventView.swift; sourceTree = "<group>"; };
@@ -210,6 +214,7 @@
 			children = (
 				F100PH0032B8A8A2D00A0A001 /* PhotoThumbnailView.swift */,
 				F100PH0042B8A8A2D00A0A001 /* EmptyStateView.swift */,
+				F300TG0112B8A8A2D00A0A001 /* TagChipView.swift */,
 				F200FAB0212B8A8A2D00A0A001 /* AlbumImportToolbarButton.swift */,
 			);
 			path = Components;
@@ -221,6 +226,7 @@
 				E01D5B0112B8A8A2D00A0A001 /* PhotoPickerRepresentable.swift */,
 				E01D5B0122B8A8A2D00A0A001 /* ImportOptionsSheet.swift */,
 				F100PH0052B8A8A2D00A0A001 /* PhotoDetailView.swift */,
+				F300TG0212B8A8A2D00A0A001 /* EditTagsSheet.swift */,
 			);
 			path = Photo;
 			sourceTree = "<group>";
@@ -368,7 +374,9 @@
 				F100PH0222B8A8A2D00A0A001 /* AlbumTimelineView.swift in Sources */,
 				F100PH0232B8A8A2D00A0A001 /* PhotoThumbnailView.swift in Sources */,
 				F100PH0242B8A8A2D00A0A001 /* EmptyStateView.swift in Sources */,
+				F300TG0122B8A8A2D00A0A001 /* TagChipView.swift in Sources */,
 				F200FAB0222B8A8A2D00A0A001 /* AlbumImportToolbarButton.swift in Sources */,
+				F300TG0222B8A8A2D00A0A001 /* EditTagsSheet.swift in Sources */,
 				0A0D5B9152B8A8A2D00A0A001 /* EventsListView.swift in Sources */,
 				0A0D5B9162B8A8A2D00A0A001 /* EventsTab.swift in Sources */,
 				E01D5B0042B8A8A2D00A0A001 /* EventDetailView.swift in Sources */,

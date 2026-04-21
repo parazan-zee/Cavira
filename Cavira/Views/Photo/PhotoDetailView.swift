@@ -18,12 +18,27 @@ struct PhotoDetailView: View {
     @State private var videoPlayer: AVPlayer?
     @State private var loadFailed = false
     @State private var showRemoveConfirm = false
+    @State private var showEditTags = false
+
+    @State private var showPeopleOverlays = false
+    @State private var isPlacingPeopleTag = false
+    @State private var pendingPlacementPoint: CGPoint?
+    @State private var showPlacePersonDialog = false
+    @State private var mediaContainerSize: CGSize = .zero
 
     private static let detailDateFormatter: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "d MMMM yyyy"
         return f
     }()
+
+    private var dateTitle: String {
+        Self.detailDateFormatter.string(from: entry.capturedDate)
+    }
+
+    private var locationSubtitle: String? {
+        entry.locationTag?.name
+    }
 
     var body: some View {
         ZStack {
@@ -55,16 +70,74 @@ struct PhotoDetailView: View {
                         .tint(CaviraTheme.accent)
                 }
             }
+            .contentShape(Rectangle())
+            .background(
+                GeometryReader { proxy in
+                    Color.clear
+                        .onAppear { mediaContainerSize = proxy.size }
+                        .onChange(of: proxy.size) { _, newValue in mediaContainerSize = newValue }
+                }
+            )
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onEnded { value in
+                        if isPlacingPeopleTag {
+                            pendingPlacementPoint = value.location
+                            showPlacePersonDialog = true
+                            return
+                        }
+                        withAnimation(.easeInOut(duration: 0.18)) {
+                            showPeopleOverlays.toggle()
+                        }
+                    }
+            )
+            .overlay {
+                if showPeopleOverlays && !entry.peopleTags.isEmpty {
+                    Group {
+                        if isPlacingPeopleTag {
+                            peopleTagsOverlayPositioned
+                        } else {
+                            peopleTagsOverlayStacked
+                        }
+                    }
+                    .transition(.opacity)
+                }
+            }
         }
-        .navigationTitle(Self.detailDateFormatter.string(from: entry.capturedDate))
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarColorScheme(.dark, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbar {
+            ToolbarItem(placement: .principal) {
+                VStack(spacing: 2) {
+                    Text(dateTitle)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.92))
+                    if let locationSubtitle, !locationSubtitle.isEmpty {
+                        Text(locationSubtitle)
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.75))
+                            .lineLimit(1)
+                    }
+                }
+                .accessibilityElement(children: .combine)
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
-                    Button("Edit", systemImage: "pencil") {}
-                        .disabled(true)
+                    Button("Edit", systemImage: "pencil") {
+                        showEditTags = true
+                    }
+                    if !entry.peopleTags.isEmpty {
+                        Button(isPlacingPeopleTag ? "Done placing people tags" : "Place people tags", systemImage: "person.crop.rectangle.badge.plus") {
+                            isPlacingPeopleTag.toggle()
+                            if isPlacingPeopleTag {
+                                withAnimation(.easeInOut(duration: 0.18)) {
+                                    showPeopleOverlays = true
+                                }
+                            }
+                        }
+                    }
                     Button("Share", systemImage: "square.and.arrow.up") {}
                         .disabled(true)
                     Divider()
@@ -77,8 +150,23 @@ struct PhotoDetailView: View {
                 .accessibilityLabel("More")
             }
         }
+        .confirmationDialog("Place tag", isPresented: $showPlacePersonDialog, titleVisibility: .visible) {
+            ForEach(entry.peopleTags, id: \.id) { p in
+                Button(p.displayName) {
+                    place(person: p)
+                }
+            }
+            Button("Cancel", role: .cancel) {
+                pendingPlacementPoint = nil
+            }
+        } message: {
+            Text("Tap a name to place it here.")
+        }
         .task {
             await loadMedia()
+        }
+        .sheet(isPresented: $showEditTags) {
+            EditTagsSheet(entry: entry)
         }
         .confirmationDialog(
             "Remove from Cavira?",
@@ -115,6 +203,77 @@ struct PhotoDetailView: View {
                 }
             }
         }
+    }
+
+    private var peopleTagsOverlayPositioned: some View {
+        GeometryReader { proxy in
+            ZStack {
+                ForEach(entry.peopleTags, id: \.id) { person in
+                    let point = overlayPoint(for: person.id, in: proxy.size)
+                    Text(person.displayName)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .padding(.vertical, 6)
+                        .padding(.horizontal, 10)
+                        .background(.black.opacity(0.55), in: Capsule())
+                        .overlay(
+                            Capsule().stroke(.white.opacity(0.15), lineWidth: 1)
+                        )
+                        .position(point)
+                        .accessibilityLabel("Tagged \(person.displayName)")
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .allowsHitTesting(false)
+    }
+
+    private var peopleTagsOverlayStacked: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(entry.peopleTags, id: \.id) { person in
+                Text(person.displayName)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .padding(.vertical, 6)
+                    .padding(.horizontal, 10)
+                    .background(.black.opacity(0.55), in: Capsule())
+                    .overlay(
+                        Capsule().stroke(.white.opacity(0.15), lineWidth: 1)
+                    )
+                    .accessibilityLabel("Tagged \(person.displayName)")
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(.top, 14)
+        .padding(.leading, 14)
+        .allowsHitTesting(false)
+    }
+
+    private func overlayPoint(for personID: UUID, in size: CGSize) -> CGPoint {
+        let placements = entry.peopleTagPlacements
+        if let p = placements.first(where: { $0.personTagId == personID }) {
+            return CGPoint(x: CGFloat(p.x) * size.width, y: CGFloat(p.y) * size.height)
+        }
+        return CGPoint(x: size.width * 0.5, y: size.height * 0.5)
+    }
+
+    private func place(person: PersonTag) {
+        guard let point = pendingPlacementPoint else { return }
+        pendingPlacementPoint = nil
+
+        let size = mediaContainerSize
+        let nx = size.width > 0 ? max(0, min(1, point.x / size.width)) : 0.5
+        let ny = size.height > 0 ? max(0, min(1, point.y / size.height)) : 0.5
+
+        var placements = entry.peopleTagPlacements
+        if let idx = placements.firstIndex(where: { $0.personTagId == person.id }) {
+            placements[idx].x = nx
+            placements[idx].y = ny
+        } else {
+            placements.append(PersonTagPlacement(personTagId: person.id, x: nx, y: ny))
+        }
+        entry.peopleTagPlacements = placements
+        try? modelContext.save()
     }
 
     private var missingAssetView: some View {

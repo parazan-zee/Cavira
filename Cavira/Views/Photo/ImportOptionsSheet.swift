@@ -1,6 +1,7 @@
 import PhotosUI
 import SwiftData
 import SwiftUI
+import UIKit
 
 /// How imported items attach to an occasion when **`presetEvent`** is nil.
 private enum ImportOccasionTarget: Hashable {
@@ -19,6 +20,17 @@ struct ImportOptionsSheet: View {
     var presetEvent: Event? = nil
 
     @Query(sort: \Event.startDate, order: .reverse) private var events: [Event]
+
+    // Add-time metadata (Title → Location → People → Event)
+    @State private var titleText: String = ""
+
+    @State private var locationQuery = ""
+    @State private var appliedLocationTag: LocationTag?
+
+    @State private var peopleQuery = ""
+    @State private var contactResults: [ContactResult] = []
+    @State private var freeTextPerson = ""
+    @State private var appliedPeopleTags: [PersonTag] = []
 
     @State private var addToEvent = false
     @State private var newOccasionTitle: String = ""
@@ -49,12 +61,137 @@ struct ImportOptionsSheet: View {
         NavigationStack {
             Form {
                 Section {
-                    Text("Items stay in Apple Photos. Cavira saves organisation and tags only — no duplicate library on your device.")
-                        .font(CaviraTheme.Typography.body)
-                        .foregroundStyle(CaviraTheme.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                    if itemCount == 1 {
+                        TextField("Title", text: $titleText)
+                            .textInputAutocapitalization(.sentences)
+                            .foregroundStyle(CaviraTheme.textPrimary)
+                    } else {
+                        Text("Title can be added after saving (Edit).")
+                            .font(CaviraTheme.Typography.caption)
+                            .foregroundStyle(CaviraTheme.textTertiary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
                 .listRowBackground(CaviraTheme.surfaceCard)
+
+                Section {
+                    if let appliedLocationTag {
+                        TagChipView(label: appliedLocationTag.name, systemImage: "mappin.and.ellipse") {
+                            self.appliedLocationTag = nil
+                        }
+                    } else {
+                        TextField("Search location", text: $locationQuery)
+                            .textInputAutocapitalization(.words)
+                            .autocorrectionDisabled()
+                            .foregroundStyle(CaviraTheme.textPrimary)
+
+                        if let s = appServices {
+                            ForEach(s.locationSearch.results) { r in
+                                Button {
+                                    Task { await selectLocationSuggestion(r.id) }
+                                } label: {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(r.name)
+                                            .font(CaviraTheme.Typography.body)
+                                            .foregroundStyle(CaviraTheme.textPrimary)
+                                        if !r.subtitle.isEmpty {
+                                            Text(r.subtitle)
+                                                .font(CaviraTheme.Typography.caption)
+                                                .foregroundStyle(CaviraTheme.textTertiary)
+                                        }
+                                    }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                                .buttonStyle(.plain)
+                            }
+
+                            if !s.locationSearch.results.isEmpty {
+                                Text("Search powered by Apple Maps")
+                                    .font(CaviraTheme.Typography.micro)
+                                    .foregroundStyle(CaviraTheme.textTertiary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.top, CaviraTheme.Spacing.xs)
+                            }
+                        }
+                    }
+                } header: {
+                    Text("Location")
+                        .foregroundStyle(CaviraTheme.textSecondary)
+                }
+                .listRowBackground(CaviraTheme.surfaceCard)
+                .task(id: locationQuery) {
+                    guard appliedLocationTag == nil else { return }
+                    guard let s = appServices else { return }
+                    await s.locationSearch.search(query: locationQuery)
+                }
+
+                Section {
+                    if !appliedPeopleTags.isEmpty {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: CaviraTheme.Spacing.sm) {
+                                ForEach(appliedPeopleTags, id: \.id) { p in
+                                    TagChipView(label: p.displayName, systemImage: "person.fill") {
+                                        appliedPeopleTags.removeAll(where: { $0.id == p.id })
+                                    }
+                                }
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
+
+                    TextField("Search contacts", text: $peopleQuery)
+                        .textInputAutocapitalization(.words)
+                        .autocorrectionDisabled()
+                        .foregroundStyle(CaviraTheme.textPrimary)
+
+                    if let contacts = appServices?.contacts {
+                        switch contacts.authorizationStatus {
+                        case .authorized:
+                            ForEach(contactResults) { r in
+                                Button {
+                                    addContactPerson(r)
+                                } label: {
+                                    HStack(spacing: CaviraTheme.Spacing.md) {
+                                        contactAvatar(thumbnailData: r.thumbnailData, name: r.displayName)
+                                        Text(r.displayName)
+                                            .font(CaviraTheme.Typography.body)
+                                            .foregroundStyle(CaviraTheme.textPrimary)
+                                        Spacer(minLength: 0)
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        case .notDetermined:
+                            Button("Allow Contacts access") {
+                                Task { _ = await contacts.requestAuthorization() }
+                            }
+                            .foregroundStyle(CaviraTheme.accent)
+                        default:
+                            Text("Contacts access is off. You can still add free-text tags below.")
+                                .font(CaviraTheme.Typography.caption)
+                                .foregroundStyle(CaviraTheme.textTertiary)
+                        }
+                    }
+
+                    Divider()
+
+                    HStack(spacing: CaviraTheme.Spacing.md) {
+                        TextField("Add a person (free text)", text: $freeTextPerson)
+                            .textInputAutocapitalization(.words)
+                            .autocorrectionDisabled()
+                            .foregroundStyle(CaviraTheme.textPrimary)
+                        Button("Add") { addFreeTextPerson() }
+                            .foregroundStyle(CaviraTheme.accent)
+                            .disabled(freeTextPerson.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                } header: {
+                    Text("People")
+                        .foregroundStyle(CaviraTheme.textSecondary)
+                }
+                .listRowBackground(CaviraTheme.surfaceCard)
+                .task(id: peopleQuery) {
+                    await refreshContactResults()
+                }
 
                 Section {
                     if let locked = presetEvent {
@@ -102,7 +239,7 @@ struct ImportOptionsSheet: View {
             }
             .scrollContentBackground(.hidden)
             .background(CaviraTheme.backgroundSecondary)
-            .navigationTitle(itemCount == 1 ? "Import 1 item" : "Import \(itemCount) items")
+            .navigationTitle(itemCount == 1 ? "Add 1 item" : "Add \(itemCount) items")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(CaviraTheme.barBackground, for: .navigationBar)
             .toolbar {
@@ -111,7 +248,7 @@ struct ImportOptionsSheet: View {
                         .foregroundStyle(CaviraTheme.textSecondary)
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Import") { runImport() }
+                    Button("Add") { runImport() }
                         .fontWeight(.semibold)
                         .foregroundStyle(CaviraTheme.accent)
                         .disabled(isImporting || occasionAssignmentInvalid)
@@ -125,7 +262,7 @@ struct ImportOptionsSheet: View {
                         .background(CaviraTheme.surfaceElevated.opacity(0.95), in: RoundedRectangle(cornerRadius: CaviraTheme.Radius.medium))
                 }
             }
-            .alert("Import", isPresented: $showImportMessageAlert) {
+            .alert("Add", isPresented: $showImportMessageAlert) {
                 Button("OK", role: .cancel) {
                     importErrorMessage = nil
                 }
@@ -180,16 +317,17 @@ struct ImportOptionsSheet: View {
         Task { @MainActor in
             defer { isImporting = false }
             do {
-                let inserted = try PhotoImportService.importPickerResults(
+                let touched = try PhotoImportService.importPickerResults(
                     pickerResults,
                     event: event,
                     context: modelContext,
                     photoLibrary: services.photoLibrary
                 )
-                if inserted == 0, !pickerResults.isEmpty {
+                if touched.isEmpty, !pickerResults.isEmpty {
                     importErrorMessage = "Nothing new was added. Selected items may already be in your album."
                     showImportMessageAlert = true
                 } else {
+                    applyMetadata(to: touched)
                     dismiss()
                 }
             } catch {
@@ -197,5 +335,151 @@ struct ImportOptionsSheet: View {
                 showImportMessageAlert = true
             }
         }
+    }
+
+    @MainActor
+    private func applyMetadata(to entries: [PhotoEntry]) {
+        let trimmedTitle = titleText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let titleToApply = trimmedTitle.isEmpty ? nil : trimmedTitle
+
+        for entry in entries {
+            if itemCount == 1 {
+                entry.title = titleToApply
+            }
+            if let appliedLocationTag {
+                entry.locationTag = appliedLocationTag
+            }
+            if !appliedPeopleTags.isEmpty {
+                for p in appliedPeopleTags where !entry.peopleTags.contains(where: { $0.id == p.id }) {
+                    entry.peopleTags.append(p)
+                }
+                var placements = entry.peopleTagPlacements
+                for p in appliedPeopleTags where !placements.contains(where: { $0.personTagId == p.id }) {
+                    placements.append(PersonTagPlacement(personTagId: p.id, x: 0.12, y: 0.14))
+                }
+                entry.peopleTagPlacements = placements
+            }
+        }
+        try? modelContext.save()
+    }
+
+    // MARK: - Location selection
+
+    @MainActor
+    private func selectLocationSuggestion(_ id: UUID) async {
+        guard let s = appServices else { return }
+        guard let resolved = await s.locationSearch.resolveSelection(id: id) else { return }
+
+        let existing = findExistingLocationTag(for: resolved)
+        let tag: LocationTag
+        if let existing {
+            tag = existing
+        } else {
+            tag = LocationTag(
+                name: resolved.name,
+                latitude: resolved.latitude,
+                longitude: resolved.longitude,
+                mapKitPlaceID: resolved.mapKitPlaceID
+            )
+            modelContext.insert(tag)
+        }
+        appliedLocationTag = tag
+        locationQuery = ""
+        s.locationSearch.clear()
+        try? modelContext.save()
+    }
+
+    private func findExistingLocationTag(for resolved: LocationResult) -> LocationTag? {
+        let descriptor = FetchDescriptor<LocationTag>()
+        let tags = (try? modelContext.fetch(descriptor)) ?? []
+        if let placeID = resolved.mapKitPlaceID, !placeID.isEmpty {
+            return tags.first { $0.mapKitPlaceID == placeID }
+        }
+        return tags.first {
+            $0.name.caseInsensitiveCompare(resolved.name) == .orderedSame
+            && $0.latitude == resolved.latitude
+            && $0.longitude == resolved.longitude
+        }
+    }
+
+    // MARK: - People selection
+
+    @MainActor
+    private func refreshContactResults() async {
+        guard let contacts = appServices?.contacts else { return }
+        guard contacts.authorizationStatus == .authorized else {
+            contactResults = []
+            return
+        }
+        contactResults = await contacts.search(query: peopleQuery)
+    }
+
+    private func contactAvatar(thumbnailData: Data?, name: String) -> some View {
+        Group {
+            if let thumbnailData, let img = UIImage(data: thumbnailData) {
+                Image(uiImage: img)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                ZStack {
+                    Circle().fill(CaviraTheme.surfaceCard.opacity(0.7))
+                    Text(initials(for: name))
+                        .font(CaviraTheme.Typography.micro.weight(.semibold))
+                        .foregroundStyle(CaviraTheme.textSecondary)
+                }
+            }
+        }
+        .frame(width: 30, height: 30)
+        .clipShape(Circle())
+    }
+
+    private func initials(for name: String) -> String {
+        let parts = name.split(separator: " ")
+        let first = parts.first?.first.map(String.init) ?? ""
+        let last = parts.dropFirst().first?.first.map(String.init) ?? ""
+        let combined = (first + last).uppercased()
+        return combined.isEmpty ? "?" : combined
+    }
+
+    private func addContactPerson(_ contact: ContactResult) {
+        let descriptor = FetchDescriptor<PersonTag>()
+        let tags = (try? modelContext.fetch(descriptor)) ?? []
+        let person: PersonTag
+        if let existing = tags.first(where: { $0.contactIdentifier == contact.contactIdentifier }) {
+            person = existing
+        } else {
+            let created = PersonTag(
+                contactIdentifier: contact.contactIdentifier,
+                displayName: contact.displayName,
+                thumbnailData: contact.thumbnailData
+            )
+            modelContext.insert(created)
+            person = created
+        }
+        if !appliedPeopleTags.contains(where: { $0.id == person.id }) {
+            appliedPeopleTags.append(person)
+        }
+        try? modelContext.save()
+    }
+
+    private func addFreeTextPerson() {
+        let trimmed = freeTextPerson.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        let descriptor = FetchDescriptor<PersonTag>()
+        let tags = (try? modelContext.fetch(descriptor)) ?? []
+        let person: PersonTag
+        if let existing = tags.first(where: { $0.contactIdentifier == nil && $0.displayName.caseInsensitiveCompare(trimmed) == .orderedSame }) {
+            person = existing
+        } else {
+            let created = PersonTag(displayName: trimmed)
+            modelContext.insert(created)
+            person = created
+        }
+        if !appliedPeopleTags.contains(where: { $0.id == person.id }) {
+            appliedPeopleTags.append(person)
+        }
+        freeTextPerson = ""
+        try? modelContext.save()
     }
 }

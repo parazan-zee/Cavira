@@ -5,23 +5,23 @@ import SwiftData
 
 /// Reference-only import from `PHPickerResult` into SwiftData (`PhotoEntry`).
 enum PhotoImportService {
-    /// Returns the number of **new** rows inserted (skips duplicates and unresolved picks).
+    /// Returns the imported and/or newly-linked entries (skips unresolved picks).
     @MainActor
     static func importPickerResults(
         _ results: [PHPickerResult],
         event: Event?,
         context: ModelContext,
         photoLibrary: PhotoLibraryService
-    ) throws -> Int {
-        var inserted = 0
-        var linked = 0
+    ) throws -> [PhotoEntry] {
+        var touched: [PhotoEntry] = []
+        touched.reserveCapacity(results.count)
         for result in results {
             guard let lid = result.assetIdentifier else { continue }
             if let existing = DataService.existingPhotoEntry(localIdentifier: lid, context: context) {
                 if let event {
                     if existing.event?.id != event.id {
                         existing.event = event
-                        linked += 1
+                        touched.append(existing)
                     }
                 }
                 continue
@@ -41,11 +41,11 @@ enum PhotoImportService {
                 event: event
             )
             context.insert(entry)
-            inserted += 1
+            touched.append(entry)
         }
-        if inserted > 0 || linked > 0 {
+        if !touched.isEmpty {
             try context.save()
         }
-        return inserted + linked
+        return touched
     }
 }

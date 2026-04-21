@@ -4,13 +4,14 @@ import SwiftData
 @Model
 final class PersonTag {
     var id: UUID
-    var contactIdentifier: String
+    /// Optional link into iOS Contacts. `nil` = free-text tag created in Cavira (not a real contact).
+    var contactIdentifier: String?
     var displayName: String
     var thumbnailData: Data?
 
     init(
         id: UUID = UUID(),
-        contactIdentifier: String,
+        contactIdentifier: String? = nil,
         displayName: String,
         thumbnailData: Data? = nil
     ) {

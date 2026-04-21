@@ -60,7 +60,7 @@ Keep this table in sync with the Cavira codebase as phases finish. Each phase se
 | 5.5 — CaviraTheme (Ranger) | ✅ Complete |
 | 6 — Events & Calendar (month + Photo counts + occasions) | ✅ Complete |
 | 6.1 — Calendar year/month navigation | ✅ Complete |
-| 7 — Tagging | ⏳ Not started |
+| 7 — Tagging | 🚧 In progress |
 | 8 — Search | ⏳ Not started |
 | 9 — Stories | ⏳ Not started |
 | 10 — Settings & storage | ⏳ Not started |
@@ -149,6 +149,7 @@ Keep this table in sync with the Cavira codebase as phases finish. Each phase se
 | **Import — post-pick cover** | When importing **multiple** assets into an occasion in one go, optional step: **“Which photo is the cover?”** after import. **Backlog** unless folded into **Phase 12** import polish. |
 | **Centre tab `+`** | Global import entry from any tab (see **Global “add to album” (+)**); implement with Phase 4 / shell refactors. |
 | **Import UI polish** | Picker + `ImportOptionsSheet` presentation and copy — scheduled in **Phase 12** (“Import flow UI”). |
+| **Settings — Reset Cavira** | Add a destructive **Reset** action in Settings with a **confirmation dialog**. Reset should wipe Cavira’s **SwiftData** (album `PhotoEntry` rows, `Event` occasions, tags/stories if present) and restore **`AppSettings`** defaults, but **never delete anything from Apple Photos**. |
 | **Home timeline — sticky month headers** | Current **`AlbumTimelineView`** uses **non-sticky** month titles; upgrade via **`List`/`Section`** or custom stickies in **Phase 12** (or earlier if product pulls it forward). |
 | **SwiftData migrations** | As models evolve, plan **lightweight migrations** or **VersionedSchema** so TestFlight / App Store users are not forced to delete the app. |
 | **`ranger_theme.md`** | Human-readable **Ranger** spec; **canonical code** is **`CaviraTheme.swift`**. Keep the two in sync (especially hexes). |
@@ -666,7 +667,7 @@ Layout:
 
 ## Views/Home/GridView.swift
 
-- LazyVGrid with 3 columns, spacing 2pt (tight, like Instagram); support optional **empty title / subtitle** for reuse from **Videos** mode
+- LazyVGrid with 3 columns, **4pt** spacing (tight, like Instagram) **plus 4pt horizontal padding** so thumbnails have a subtle gutter at the edges too; support optional **empty title / subtitle** for reuse from **Videos** mode
 - Each cell: PhotoThumbnailView(entry: photo) — square, fills cell width; **videos** show a play-badge overlay; **Live Photos** use **still** thumbnail only
 - Sort: photos already sorted by capturedDate descending from parent
 - On tap: navigate to PhotoDetailView(entry: photo)
@@ -905,10 +906,10 @@ Extend `LibraryMonthCalendarView` / `EventsListView`:
 
 ---
 
-# PHASE 7 — Tagging (Location, People, Custom)
-**Build tracker:** ⏳ Not started
+# PHASE 7 — Tagging (Location + People)
+**Build tracker:** 🚧 In progress
 
-### Goal: Users can tag photos with places, contacts, and free text. Tags are searchable.
+### Goal: Users can tag photos with **places** and **people** (Contacts-backed or free text). Tags are searchable (Phase 8).
 
 ---
 
@@ -919,7 +920,10 @@ Build the full tagging system. Tags are applied to PhotoEntry records.
 
 ## Views/Photo/EditTagsSheet.swift
 
-A sheet that slides up from PhotoDetailView. Organised into 3 sections:
+A sheet that slides up from PhotoDetailView (**photo detail only**). This is the user’s **Edit** sheet for a photo and includes:
+- **Details**: a short **Title** field (saved on `PhotoEntry.title`)
+- **Location**: MapKit-powered place search (saved as `LocationTag`)
+- **People**: Contacts-backed or free-text people tags (saved as `PersonTag` + per-photo placements)
 
 ### Section 1: Location Tag
 - Search field bound to `@Environment(\.appServices).locationSearch`
@@ -935,11 +939,8 @@ A sheet that slides up from PhotoDetailView. Organised into 3 sections:
 - Tap to add — multiple people can be tagged
 - Show applied people as a horizontal scroll of chips with avatar + name + "×"
 - If Contacts permission not granted: show "Allow Contacts access" button that calls ContactsService.requestAuthorization()
-
-### Section 3: Custom Tags
-- TextField: user types a tag and presses return or comma to add
-- Show applied tags as chips
-- Chips are deletable with "×"
+- Also allow **free-text people tags** (not saved as Contacts): user types a name and taps **Add** (or return) to create a PersonTag with no `contactIdentifier`.
+- People tags are **placed on the image** (Instagram-style): tags are **hidden by default** and appear only when the user taps the photo.
 
 ## Views/Components/TagChipView.swift
 
@@ -953,12 +954,10 @@ struct TagChipView: View {
 ```
 
 ## Update PhotoDetailView:
-- Add a tags section below the photo:
-  - Location chip (MapPin SF Symbol) if locationTag is set
-  - People chips if peopleTags is not empty  
-  - Custom tag chips if customTags is not empty
-- Tapping any tag or an "Edit Tags" button opens EditTagsSheet
-- All tags are display-only in the detail view (editing happens in the sheet)
+- **Edit** menu action opens `EditTagsSheet`.
+- **Location display:** show location on a **new line under the date** in the header when set.
+- **People display:** render people tags as **overlays on the photo** at saved positions; **hidden until the user taps the image**, then they fade/appear.
+- Tag editing happens in the sheet; placement can be updated from the detail view (tap-to-place/update).
 
 ## LocationSearchService (Phase 7 wiring):
 Reuse the Phase 2 implementation; ensure list rows call `resolveSelection` before persisting a `LocationTag`. If the query is empty, `clear()` runs immediately.
@@ -973,13 +972,12 @@ If the user denies Contacts, show a non-blocking banner in the People section ex
 - [ ] EditTagsSheet opens from PhotoDetailView
 - [ ] Location search returns real results from MapKit
 - [ ] Selecting a location creates a LocationTag and assigns it to the photo
-- [ ] Location tag appears as a chip in EditTagsSheet and PhotoDetailView
+- [ ] Location appears under the date in PhotoDetailView when set
 - [ ] Removing a location tag clears it from the photo
 - [ ] Contacts search works (requires Contacts permission)
 - [ ] Multiple people can be tagged on one photo
-- [ ] Person chips show avatar or initials fallback
-- [ ] Custom tags can be added with return/comma
-- [ ] Custom tag chips can be removed
+- [ ] Free-text people tags can be added (no Contacts permission required)
+- [ ] People tags are hidden until tapping the image, then appear as overlays
 - [ ] All tags persist after closing and reopening the sheet
 
 ---

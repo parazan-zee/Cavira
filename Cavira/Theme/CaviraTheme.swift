@@ -104,13 +104,15 @@ enum CaviraTheme {
         UINavigationBar.appearance().compactAppearance = nav
         UINavigationBar.appearance().tintColor = UIColor(accent)
 
-        UISegmentedControl.appearance().selectedSegmentTintColor = UIColor(accent)
+        // Match tab bar semantics: unselected = light text, selected = accent.
+        // We keep a dark selected pill for contrast (instead of accent pill + dark text).
+        UISegmentedControl.appearance().selectedSegmentTintColor = UIColor(barBackground)
         UISegmentedControl.appearance().setTitleTextAttributes(
-            [.foregroundColor: UIColor(textOnAccent)],
+            [.foregroundColor: UIColor(accent)],
             for: .selected
         )
         UISegmentedControl.appearance().setTitleTextAttributes(
-            [.foregroundColor: UIColor(textSecondary)],
+            [.foregroundColor: UIColor(textPrimary)],
             for: .normal
         )
         UISegmentedControl.appearance().backgroundColor = UIColor(surfaceCard)

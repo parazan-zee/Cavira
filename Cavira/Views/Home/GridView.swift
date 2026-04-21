@@ -7,11 +7,15 @@ struct GridView: View {
     var emptySubtitle: String? = "Your album stays in Apple Photos; Cavira is where you curate what appears here."
     let onRequestRemove: (PhotoEntry) -> Void
 
-    private let columns = [
-        GridItem(.flexible(), spacing: 2),
-        GridItem(.flexible(), spacing: 2),
-        GridItem(.flexible(), spacing: 2),
-    ]
+    private let gridSpacing: CGFloat = 4
+
+    private var columns: [GridItem] {
+        [
+            GridItem(.flexible(), spacing: gridSpacing),
+            GridItem(.flexible(), spacing: gridSpacing),
+            GridItem(.flexible(), spacing: gridSpacing),
+        ]
+    }
 
     var body: some View {
         Group {
@@ -22,7 +26,7 @@ struct GridView: View {
                 )
             } else {
                 ScrollView {
-                    LazyVGrid(columns: columns, spacing: 2) {
+                    LazyVGrid(columns: columns, spacing: gridSpacing) {
                         ForEach(photos, id: \.id) { entry in
                             NavigationLink(value: entry.id) {
                                 PhotoThumbnailView(entry: entry)
@@ -35,7 +39,7 @@ struct GridView: View {
                             }
                         }
                     }
-                    .padding(.horizontal, 0)
+                    .padding(.horizontal, gridSpacing)
                 }
                 .background(CaviraTheme.backgroundPrimary)
             }
