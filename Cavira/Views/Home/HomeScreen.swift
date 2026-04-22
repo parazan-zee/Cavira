@@ -18,9 +18,24 @@ struct HomeScreen: View {
     }
 
     @State private var homeViewMode: HomeViewMode = .grid
-    @State private var showPhotoPicker = false
-    @State private var showImportOptions = false
-    @State private var pendingPickerResults: [PHPickerResult] = []
+    private enum HomeSheet: Identifiable {
+        case photoPicker
+        case importOptions(results: [PHPickerResult])
+
+        private static let pickerID = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
+
+        var id: UUID {
+            switch self {
+            case .photoPicker:
+                return Self.pickerID
+            case .importOptions:
+                // New id each time ensures a fresh sheet instance.
+                return UUID()
+            }
+        }
+    }
+
+    @State private var activeSheet: HomeSheet?
     @State private var showPhotoDeniedAlert = false
     @State private var entryPendingRemoval: PhotoEntry?
     @State private var showRemoveConfirm = false
@@ -105,18 +120,23 @@ struct HomeScreen: View {
             settings.defaultHomeView = toSave
             try? modelContext.save()
         }
-        .sheet(isPresented: $showPhotoPicker) {
-            PhotoPickerRepresentable(isPresented: $showPhotoPicker) { results in
-                guard !results.isEmpty else { return }
-                pendingPickerResults = results
-                DispatchQueue.main.async {
-                    showImportOptions = true
+        .sheet(item: $activeSheet) { sheet in
+            switch sheet {
+            case .photoPicker:
+                PhotoPickerRepresentable(
+                    isPresented: Binding(
+                        get: { activeSheet != nil },
+                        set: { if !$0 { activeSheet = nil } }
+                    )
+                ) { results in
+                    guard !results.isEmpty else { return }
+                    // Present options only after the picker has fully dismissed.
+                    activeSheet = .importOptions(results: results)
                 }
+                .ignoresSafeArea()
+            case .importOptions(let results):
+                ImportOptionsSheet(pickerResults: results)
             }
-            .ignoresSafeArea()
-        }
-        .sheet(isPresented: $showImportOptions) {
-            ImportOptionsSheet(pickerResults: pendingPickerResults)
         }
         .alert("Photos access needed", isPresented: $showPhotoDeniedAlert) {
             Button("Open Settings") {
@@ -189,11 +209,11 @@ struct HomeScreen: View {
         services.photoLibrary.refreshAuthorizationStatus()
         switch services.photoLibrary.authorizationStatus {
         case .authorized, .limited:
-            showPhotoPicker = true
+            activeSheet = .photoPicker
         case .notDetermined:
             let ok = await services.photoLibrary.requestAuthorisationIfNeeded()
             if ok {
-                showPhotoPicker = true
+                activeSheet = .photoPicker
             } else {
                 showPhotoDeniedAlert = true
             }

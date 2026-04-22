@@ -11,9 +11,23 @@ struct EventDetailView: View {
     @Environment(\.openURL) private var openURL
     @Environment(\.dismiss) private var dismiss
 
-    @State private var showPhotoPicker = false
-    @State private var showImportOptions = false
-    @State private var pendingPickerResults: [PHPickerResult] = []
+    private enum EventSheet: Identifiable {
+        case photoPicker
+        case importOptions(results: [PHPickerResult])
+
+        private static let pickerID = UUID(uuidString: "00000000-0000-0000-0000-000000000002")!
+
+        var id: UUID {
+            switch self {
+            case .photoPicker:
+                return Self.pickerID
+            case .importOptions:
+                return UUID()
+            }
+        }
+    }
+
+    @State private var activeSheet: EventSheet?
     @State private var showPhotoDeniedAlert = false
     @State private var showEditEvent = false
 
@@ -99,18 +113,22 @@ struct EventDetailView: View {
                 }
             }
         }
-        .sheet(isPresented: $showPhotoPicker) {
-            PhotoPickerRepresentable(isPresented: $showPhotoPicker) { results in
-                guard !results.isEmpty else { return }
-                pendingPickerResults = results
-                DispatchQueue.main.async {
-                    showImportOptions = true
+        .sheet(item: $activeSheet) { sheet in
+            switch sheet {
+            case .photoPicker:
+                PhotoPickerRepresentable(
+                    isPresented: Binding(
+                        get: { activeSheet != nil },
+                        set: { if !$0 { activeSheet = nil } }
+                    )
+                ) { results in
+                    guard !results.isEmpty else { return }
+                    activeSheet = .importOptions(results: results)
                 }
+                .ignoresSafeArea()
+            case .importOptions(let results):
+                ImportOptionsSheet(pickerResults: results, presetEvent: event)
             }
-            .ignoresSafeArea()
-        }
-        .sheet(isPresented: $showImportOptions) {
-            ImportOptionsSheet(pickerResults: pendingPickerResults, presetEvent: event)
         }
         .sheet(isPresented: $showEditEvent) {
             CreateEditEventView(existing: event, onEventDeleted: {
@@ -166,11 +184,11 @@ struct EventDetailView: View {
         services.photoLibrary.refreshAuthorizationStatus()
         switch services.photoLibrary.authorizationStatus {
         case .authorized, .limited:
-            showPhotoPicker = true
+            activeSheet = .photoPicker
         case .notDetermined:
             let ok = await services.photoLibrary.requestAuthorisationIfNeeded()
             if ok {
-                showPhotoPicker = true
+                activeSheet = .photoPicker
             } else {
                 showPhotoDeniedAlert = true
             }

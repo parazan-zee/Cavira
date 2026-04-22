@@ -32,8 +32,12 @@ struct PhotoPickerRepresentable: UIViewControllerRepresentable {
         }
 
         func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
-            parent.onComplete(results)
+            // Dismiss the picker first, then deliver results on the next runloop.
+            // This avoids sheet-presentation races when the caller immediately opens another sheet.
             parent.isPresented = false
+            DispatchQueue.main.async {
+                self.parent.onComplete(results)
+            }
         }
     }
 }

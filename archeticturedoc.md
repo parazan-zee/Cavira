@@ -581,6 +581,8 @@ Wrap `PHPickerViewController` with `UIViewControllerRepresentable`.
 
 Use a small coordinator pattern; dismiss picker after confirm.
 
+**Implementation note (sheet stability):** When the user flow is **Picker → ImportOptionsSheet**, present them as a **single sheet state machine** (e.g. an enum + `.sheet(item:)`) rather than two separate `.sheet(isPresented:)` modifiers. This avoids first-run sheet races where `ImportOptionsSheet` may briefly render with the wrong `pickerResults` or dismiss unexpectedly.
+
 ## Views/Photo/ImportOptionsSheet.swift
 After the user picks assets, show this sheet before writing SwiftData:
 

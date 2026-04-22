@@ -273,7 +273,10 @@ struct ImportOptionsSheet: View {
                         .foregroundStyle(CaviraTheme.textSecondary)
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Add") { runImport() }
+                    Button("Add") {
+                        didAttemptAdd = true
+                        runImport()
+                    }
                         .fontWeight(.semibold)
                         .foregroundStyle(CaviraTheme.accent)
                         .disabled(isImporting || occasionAssignmentInvalid)
@@ -305,10 +308,8 @@ struct ImportOptionsSheet: View {
 
     private func runImport() {
         guard let services = appServices else { return }
-        didAttemptAdd = true
         if itemCount == 1, titleText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            importErrorMessage = "Please enter a title."
-            showImportMessageAlert = true
+            // Inline validation handles this state; avoid alerts which can conflict with sheet presentation timing.
             return
         }
 
