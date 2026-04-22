@@ -26,6 +26,10 @@
 	<string>Cavira uses your contacts so you can tag people in your photos.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Cavira can use your location to suggest place tags.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Cavira uses the camera so you can capture photos and videos directly into your Stories. Captures are saved into Apple Photos.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Cavira uses the microphone when recording videos for your Stories. Captures are saved into Apple Photos.</string>
 </dict>
 </plist>
 

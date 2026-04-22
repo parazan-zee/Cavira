@@ -23,6 +23,7 @@ struct ImportOptionsSheet: View {
 
     // Add-time metadata (Title → Location → People → Event)
     @State private var titleText: String = ""
+    @State private var didAttemptAdd = false
 
     @State private var locationQuery = ""
     @State private var appliedLocationTag: LocationTag?
@@ -41,6 +42,11 @@ struct ImportOptionsSheet: View {
 
     private var itemCount: Int {
         pickerResults.count
+    }
+
+    private var titleInvalid: Bool {
+        guard itemCount == 1 else { return false }
+        return didAttemptAdd && titleText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     /// `true` when “Add to an event” is on but the user has not satisfied title / picker rules.
@@ -65,11 +71,30 @@ struct ImportOptionsSheet: View {
                         TextField("Title", text: $titleText)
                             .textInputAutocapitalization(.sentences)
                             .foregroundStyle(CaviraTheme.textPrimary)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: CaviraTheme.Radius.medium, style: .continuous)
+                                    .stroke(titleInvalid ? CaviraTheme.destructive : .clear, lineWidth: 1.5)
+                            )
+
+                        if titleInvalid {
+                            Text("Title is required.")
+                                .font(CaviraTheme.Typography.caption)
+                                .foregroundStyle(CaviraTheme.destructive)
+                        }
                     } else {
                         Text("Title can be added after saving (Edit).")
                             .font(CaviraTheme.Typography.caption)
                             .foregroundStyle(CaviraTheme.textTertiary)
                             .fixedSize(horizontal: false, vertical: true)
+                    }
+                } header: {
+                    HStack(spacing: 4) {
+                        Text("Title")
+                            .foregroundStyle(CaviraTheme.textSecondary)
+                        if itemCount == 1 {
+                            Text("*")
+                                .foregroundStyle(CaviraTheme.destructive)
+                        }
                     }
                 }
                 .listRowBackground(CaviraTheme.surfaceCard)
@@ -280,6 +305,12 @@ struct ImportOptionsSheet: View {
 
     private func runImport() {
         guard let services = appServices else { return }
+        didAttemptAdd = true
+        if itemCount == 1, titleText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            importErrorMessage = "Please enter a title."
+            showImportMessageAlert = true
+            return
+        }
 
         let event: Event? = {
             if let presetEvent { return presetEvent }

@@ -15,7 +15,7 @@ Use this as the **inventory of shipped behaviour** before starting **Phase 7+**.
 | **Theme** | **`Theme/CaviraTheme.swift`:** Ranger palette (`ranger_theme.md`); **hex literals match the spec exactly**. **`CaviraTheme.applyGlobalChrome()`** in **`CaviraApp`** (UIKit appearances: tab bar, nav bar, segmented control, table view). **`Assets.xcassets/AccentColor`** = **`#D4B96A`** (Ranger accent). **`RootView`:** `.preferredColorScheme(.dark)`, `.tint(CaviraTheme.accent)`, root **`backgroundPrimary`**. |
 | **Services** | `AppServices` + `Environment` (`AppServices?`); `PhotoLibraryService` (auth, `fetchAllAssets`, **`assetCountsByDayInMonth`**, `asset(for:)`); `PhotoImageLoader`; `PhotoImportService` (reference import, dedupe by `localIdentifier`, **link existing album rows to an `Event`** when importing with an occasion); `PhotoStorageServing` / `NoOpPhotoStorage`; `LocationSearchService`, `ContactsService`, `DataService`. |
 | **Shell** | `RootView` `TabView` (5 tabs); launch **`AppSettings`** bootstrap + **Photos** `requestAuthorization` task; `HomeTab` … `SettingsTab` each **one `NavigationStack`**. |
-| **Home** | Same as Phase 5.5 + **5**; segmented **Grid \| Timeline \| Videos \| Events** — **Events** = **`HomeEventsSummaryView`**: all occasions, **pinned first**, same cards as Calendar; **`AlbumImportToolbarButton`** on all segments; **`ImportOptionsSheet`**: “Add to an event” → **New occasion** (name field) **or** **Existing** picker when occasions exist; **`navigationDestination(for: UUID.self)`** resolves **photo** then **event** for **`PhotoDetailView`** → occasion chip. |
+| **Home** | Same as Phase 5.5 + **5**; segmented **Grid \| Timeline \| Videos \| Events** — **Events** = **`HomeEventsSummaryView`**: all occasions, **pinned first**, same cards as Calendar; **`AlbumImportToolbarButton`** on all segments; **`ImportOptionsSheet`**: “Add to an event” → **New occasion** (name field) **or** **Existing** picker when occasions exist; **single-item imports require a Title** (shown as **Title*** with red validation on Add); **`navigationDestination(for: UUID.self)`** resolves **photo** then **event** for **`PhotoDetailView`** → occasion chip. |
 | **Photo / import UI** | `Views/Photo/` picker + import sheet + detail; `Views/Components/` thumbnails + empty state; `Views/Home/` grid + timeline + `HomeScreen`. |
 | **Calendar tab** | **`EventsListView`**: **`LibraryMonthCalendarView`** (counts + **limited / not-determined** footnotes); **month title** opens **“Go to month”** sheet (**graphical `DatePicker`** + **Jump to today’s month** + **Go** / **Cancel**); prev/next chevrons unchanged; **Occasions** list; toolbar **`AlbumImportToolbarButton`** → **`CreateEditEventView`**; **`EventDetailView`**: **Pin** toggle + **Edit** (pin **not** in create/edit form); cover **`Picker`** when **≥ 2** photos in **Edit**; **`EventsTab`** `navigationDestination(for: UUID.self)` → event first, then photo. **`scenePhase` .active** and **`.task(id: displayedMonth)`** refresh month counts after jumps. |
 | **Placeholders** | Stories, Search, Settings bodies. |
@@ -28,8 +28,8 @@ Use this as the **inventory of shipped behaviour** before starting **Phase 7+**.
 
 | When | Focus |
 |------|--------|
-| **Next** | **Phase 7** — Tagging on `PhotoEntry`. |
-| **Then** | **Phase 8** — Search; **Phase 9** — Stories shelf + viewer + builder. |
+| **Next** | **Phase 9** — Stories shelf + viewer + builder. |
+| **Then** | **Phase 10** — Settings & storage; **Phase 11** — Profile & pinning. |
 | **Late v1** | **Phase 10** — Settings & storage (no alternate colour themes — **`CaviraTheme`** / Ranger is the only v1 skin); **Phase 11** — Profile & pinning. |
 | **Close v1** | **Phase 12** — Polish & QA: missing-asset UI, **import flow GUI**, **sticky timeline months** (if not done earlier), empty states everywhere, animations, app icon, memory, full walkthrough; **optional** polish: dark-mode **tint** tuning, **SwiftUI-only** tab/nav chrome (see Phase 12). |
 | **Backlog** (see **Additional improvements** + UX notes) | Centre tab **`+`** global import; Calendar **day detail** strip; Stories **~10 s** clips. |
@@ -60,9 +60,9 @@ Keep this table in sync with the Cavira codebase as phases finish. Each phase se
 | 5.5 — CaviraTheme (Ranger) | ✅ Complete |
 | 6 — Events & Calendar (month + Photo counts + occasions) | ✅ Complete |
 | 6.1 — Calendar year/month navigation | ✅ Complete |
-| 7 — Tagging | 🚧 In progress |
-| 8 — Search | 🚧 In progress |
-| 9 — Stories | ⏳ Not started |
+| 7 — Tagging | ✅ Complete |
+| 8 — Search | ✅ Complete |
+| 9 — Stories | 🚧 In progress |
 | 10 — Settings & storage | ⏳ Not started |
 | 11 — Profile & pinning | ⏳ Not started |
 | 12 — Polish & QA | ⏳ Not started |
@@ -126,7 +126,8 @@ Keep this table in sync with the Cavira codebase as phases finish. Each phase se
 - **Shelf layout:** **Horizontal row of cards** (like a shelf), **separated** visually between stories.
 - **Card chrome:** **Background image stretches edge-to-edge** on the card; **user-chosen title text** draws **on top** of that image (readable contrast / safe areas in implementation).
 - **Create entry point:** **`+`** button **top-right** in the navigation area to create a new story.
-- **Viewer:** Instagram-style **tap-through** slides (**photos and videos**).
+- **Viewer:** Instagram-style **tap-through** slides (**photos and videos**) with **10 s** per slide unless the user manually advances.
+- **Capture into story:** from the Story builder, allow **capturing a photo/video** and adding it as a slide. The capture must **save into Apple Photos** (no Cavira-private media store) and then import the new asset into Cavira as a `PhotoEntry` reference.
 - **Cover / poster:** **Default** = **first slide**; user must be able to **pick another** image as cover later.
 
 #### Search tab
@@ -585,7 +586,7 @@ After the user picks assets, show this sheet before writing SwiftData:
 
 - Title: dynamic count — e.g. **"Add 12 items"** (photos + videos)
 - **One-page Add flow order:** **Title → Location → People → Add to an event**
-  - **Title**: only when adding **1 item** (saved to `PhotoEntry.title`)
+  - **Title**: only when adding **1 item** (saved to `PhotoEntry.title`) — **required**; label shows **Title*** and if the user taps **Add** with it empty, highlight the field in **red** and show a short required message
   - **Location**: MapKit search + suggestion list; selecting a row creates/reuses a `LocationTag` and will be applied to all added items
   - **People**: Contacts search (if permitted) + free-text add; selected tags are applied to all added items (with default placement)
   - **Add to an event**: optional; create new event inline or pick existing; supports `presetEvent` lock when launched from `EventDetailView`
@@ -630,6 +631,7 @@ End-to-end: after import, SwiftData contains one row per added library id; thumb
 - [ ] (Optional) Centre tab **`+`** starts the same flow from another tab
 - [ ] Picker supports **multi-select** of **stills, Live Photos, and videos**
 - [ ] Add sheet shows **Title → Location → People → Add to an event** in that order (Title only for 1 item)
+- [ ] When adding **1 item**, **Title is required** and the sheet provides clear red validation if the user taps **Add** while empty
 - [ ] Each saved `PhotoEntry` has `storageMode == .reference`, `localIdentifier` set, `storedFilename == nil`, correct **`mediaKind`**, correct **`isLivePhoto`**
 - [ ] **Re-importing the same asset** does **not** create a second `PhotoEntry`
 - [ ] `capturedDate` matches library creation date for a known asset
@@ -912,7 +914,7 @@ Extend `LibraryMonthCalendarView` / `EventsListView`:
 ---
 
 # PHASE 7 — Tagging (Location + People)
-**Build tracker:** 🚧 In progress
+**Build tracker:** ✅ Complete
 
 ### Goal: Users can tag photos with **places** and **people** (Contacts-backed or free text). Tags are searchable (Phase 8).
 
@@ -990,7 +992,7 @@ If the user denies Contacts, show a non-blocking banner in the People section ex
 ---
 
 # PHASE 8 — Search
-**Build tracker:** 🚧 In progress
+**Build tracker:** ✅ Complete
 
 ### Goal: Users can search across their **Cavira digital album** and metadata — e.g. **location**, **person**, “**everything with this person**”, **family**-style groupings, **selfies** (via tags / future heuristics), custom tags, notes, dates, linked **Events** / **Stories**.
 
@@ -1058,9 +1060,17 @@ Search should feel instant for typical library sizes (up to ~2000 photos). No lo
 # PHASE 9 — Stories (Viewer & Builder)
 **Build tracker:** ⏳ Not started
 
-### Goal: Users can create Instagram-style Stories from their photos. Full overlay editing.
+### Goal: Users can create Instagram-style Stories (photos + videos) that play like a slideshow of a single memory (holiday / day out / graduation) without creating a separate media store.
 
-**List UX (per Cavira UX direction):** **StoriesListView** becomes a **horizontal shelf of cards** (separators between cards); each card uses a **full-bleed background image** with **title text on top**; **toolbar `+`** (top-right) creates a new story. **`Event`** rows should be **linkable** into stories (navigation / model link — wire with Phase 6).
+**List UX (per Cavira UX direction):** **StoriesListView** becomes a **horizontal shelf of cards** (separators between cards); each card uses a **full-bleed background image** with **title text on top**; **toolbar `+`** (top-right) creates a new story.
+
+**Product decisions (locked for v1):**
+- **Stories ≠ Events:** Events are “mini albums” for ongoing collections; Stories are a **single narrative** sequence. Keep them **separate** (no required linking). A story can be created from anywhere in the app, but it does **not** become an Event.
+- **No photo-less slides** in v1.
+- **Slide order:** fixed by **date taken** (asset creation date); **no manual reorder** in v1.
+- **Playback timing:** **10 seconds per slide** by default; user can advance manually.
+- **Exit gesture:** **swipe up** exits the viewer (like Instagram). Close (×) remains available.
+- **Pinning:** defer all story pinning + Profile bubbles to **Phase 11** (not Phase 9).
 
 ---
 
@@ -1082,17 +1092,18 @@ Product layout reminders (see Cavira UX direction):
 ### Views/Stories/StoryViewerView.swift
 - Full screen, black background
 - Displays slides in order using TabView with .tabViewStyle(.page) and indexDisplayMode .never
-- Each slide: photo fills screen (.scaledToFill), text overlays and stickers rendered on top
+- Each slide: **photo or video** fills screen (.scaledToFill), text overlays and stickers rendered on top
 - Progress bar at top: thin line segmented into N segments (one per slide), current fills from left to right
-- Auto-advance: each slide shows for 5 seconds then moves to next (use Timer)
+- Auto-advance: each slide shows for **10 seconds** then moves to next (use Timer)
 - Tap left half: go back one slide. Tap right half: go forward one slide.
 - Pause on long press (hold finger down)
 - Close button (×) in top-right
 - Story title shown at top-left with a subtle gradient behind it
+- Swipe up: exit the viewer (dismiss)
 
 ### Views/Stories/SlideRenderView.swift (reusable component)
 Renders a single StorySlide:
-- Background: photo (reference or copy, loaded via PhotoImageLoader) fills frame
+- Background: photo/video (reference or copy, loaded via PhotoImageLoader / Photos-backed video playback) fills frame
 - Text overlays: positioned using normalised coordinates (positionX * frameWidth, positionY * frameHeight)
 - Sticker overlays: same positioning, scale applied
 - In viewer mode: all overlays are non-interactive (display only)
@@ -1110,8 +1121,10 @@ Navigation flow:
 ### Views/Stories/SlidePickerView.swift
 - Grid of all PhotoEntry records (3-column, same PhotoThumbnailView)
 - Multi-select enabled — tap to select/deselect, selected cells show a checkmark badge
-- Reorder selected photos with a drag handle list at the bottom (or a horizontal scroll strip)
+- **No manual reorder** in v1. Selection order is **capturedDate ascending** (date taken).
 - "Next" button → proceeds to slide editors
+- Capture button (camera): take a photo/video and add it to the current story
+  - Must save into **Apple Photos** first (no Cavira-private capture store), then import as a `PhotoEntry` reference and include it in the selection.
 
 ### Views/Stories/SlideEditorView.swift
 Per-slide editor — this is the core creative screen:
@@ -1127,7 +1140,7 @@ Layout:
 Text overlay interaction:
 - Tap a text overlay to select it (show handles)
 - DragGesture to move (update positionX/Y as normalised values)
-- Double-tap to edit the text (show a TextField or TextEditor overlay)
+- Double-tap to edit the text (inline on-canvas editor; no full-screen edit flow)
 - Pinch gesture to resize (update fontSize or scale)
 - Rotation gesture to rotate
 - Selected overlay shows a delete button (trash icon)
@@ -1145,41 +1158,40 @@ Sticker overlay interaction:
 - Runs the full StoryViewerView in preview mode (no auto-advance, manual only)
 - "Edit" button to go back
 - "Save Story" button:
-  - Shows a sheet to set: Story title (required), cover photo (pick from slides), pin to profile toggle
+  - Shows a sheet to set: Story title (required), cover photo (pick from slides)
   - Saves Story + all StorySlide records to SwiftData
 
 ## Update StoriesListView.swift (Phase 3 placeholder):
 - @Query var stories: [Story] sorted by lastEditedDate descending
 - Stories shown as cards: cover photo + title + slide count + date
-- Pinned stories at top with pin badge
 - Tap → StoryViewerView
 - "New Story" button → StoryBuilderView
-- Long press → context menu: Pin/Unpin, Edit, Delete
+- Long press → context menu: Edit, Delete
 
-## Update ProfileView (placeholder from Phase 5):
-- Header: photo count, story count, event count
-- Horizontal scroll strip of pinned Stories (shown as circles with cover photo — like Instagram story bubbles)
-- Below: full photo grid (same as GridView)
-- Pinned Events shown as a horizontal scroll of EventCardView below stories strip
+## Profile integration:
+- Defer **Profile pinned stories strip** and all story pinning UX to **Phase 11**.
 ```
 
 ---
 
 ### Phase 9 Test Checklist
-- [ ] StoryViewerView auto-advances slides every 5 seconds
+- [ ] StoryViewerView auto-advances slides every **10 seconds**
 - [ ] Progress bar advances correctly
 - [ ] Tap left/right to navigate slides manually
 - [ ] Long press pauses auto-advance
+- [ ] Swipe up exits StoryViewerView
 - [ ] Text overlays render at correct positions in viewer
 - [ ] Sticker overlays render at correct positions in viewer
 - [ ] SlidePickerView multi-select works
+- [ ] Selected slides are ordered by **date taken** (no manual reorder UI)
+- [ ] Capture button saves to Apple Photos and the new asset can be added as a slide
 - [ ] Text overlay can be added, dragged, rotated, resized, deleted in editor
 - [ ] Sticker overlay can be added, dragged, rotated, resized, deleted in editor
 - [ ] Story saves correctly with title and cover photo
 - [ ] StoriesListView shows saved stories
 - [ ] Tapping a story opens the viewer
-- [ ] Pinned stories appear in ProfileView story bubbles
-- [ ] Profile view shows correct counts
+- [ ] (Deferred to Phase 11) Pinned stories appear in ProfileView story bubbles
+- [ ] (Deferred to Phase 11) Profile view shows correct counts
 
 ---
 
@@ -1407,4 +1419,4 @@ Review the entire app for any obvious UI inconsistencies — font sizes, spacing
 | 12 | Polish & QA (+ optional appearance / tint / SwiftUI chrome) | All phases |
 
 
-*Document version 1.11 — Cavira iOS App. **Shipped:** Phases 1–6.1 + **Home Events segment** (see **Repo snapshot**). **Next:** Phase **7** (tagging). **Then:** Phases 8+. **Close v1:** Phase 12 + **Additional improvements** backlog. **Design note:** **`CaviraTheme`** / **`ranger_theme.md`** is the canonical v1 colour system; optional light/system appearance or palette work is **Phase 12** only, if approved. **Home:** toolbar segments **Grid \| Timeline \| Videos \| Events**; **Home +** matches **Calendar** list toolbar (`AlbumImportToolbarButton`).*
+*Document version 1.12 — Cavira iOS App. **Shipped:** Phases 1–8 (see **Repo snapshot**). **Next:** Phase **9** (Stories). **Close v1:** Phase 12 + **Additional improvements** backlog. **Design note:** **`CaviraTheme`** / **`ranger_theme.md`** is the canonical v1 colour system; optional light/system appearance or palette work is **Phase 12** only, if approved. **Home:** toolbar segments **Grid \| Timeline \| Videos \| Events**; **Home +** matches **Calendar** list toolbar (`AlbumImportToolbarButton`).*
