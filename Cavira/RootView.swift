@@ -17,7 +17,7 @@ struct RootView: View {
                 HomeTab()
                     .tabItem { Label("Home", systemImage: "house") }
 
-                EventsTab()
+                CalendarTab()
                     .tabItem { Label("Calendar", systemImage: "calendar") }
 
                 StoriesTab()
@@ -35,6 +35,7 @@ struct RootView: View {
         .tint(CaviraTheme.accent)
         .onAppear {
             _ = DataService.getOrCreateSettings(context: modelContext)
+            DataService.migrateEventsToStoriesIfNeeded(context: modelContext)
             Task {
                 await appServices.photoLibrary.requestAuthorization()
             }

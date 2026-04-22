@@ -77,4 +77,91 @@ final class PhotoLibraryService {
         }
         return counts
     }
+
+    /// All image+video assets captured on the given calendar day (local time), newest first.
+    func assets(onDay day: Date, calendar: Calendar = .current) -> [PHAsset] {
+        guard let start = calendar.startOfDay(for: day) as Date?,
+              let end = calendar.date(byAdding: .day, value: 1, to: start)
+        else { return [] }
+
+        let options = PHFetchOptions()
+        options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+        options.predicate = NSPredicate(
+            format: "(mediaType == %d OR mediaType == %d) AND (creationDate >= %@ AND creationDate < %@)",
+            PHAssetMediaType.image.rawValue,
+            PHAssetMediaType.video.rawValue,
+            start as NSDate,
+            end as NSDate
+        )
+        let result = PHAsset.fetchAssets(with: options)
+        var assets: [PHAsset] = []
+        assets.reserveCapacity(result.count)
+        result.enumerateObjects { asset, _, _ in
+            assets.append(asset)
+        }
+        return assets
+    }
+
+    /// Best-effort recap: assets captured on the same **month/day** in previous years (newest first).
+    /// `yearsBack` bounds the search to avoid too many fetches.
+    func recapAssetsOnThisDate(referenceDay: Date, yearsBack: Int = 10, calendar: Calendar = .current, limit: Int = 25) -> [PHAsset] {
+        let comps = calendar.dateComponents([.month, .day, .year], from: referenceDay)
+        guard let month = comps.month, let day = comps.day, let year = comps.year else { return [] }
+
+        var collected: [PHAsset] = []
+        for y in stride(from: year - 1, through: max(0, year - yearsBack), by: -1) {
+            guard let start = calendar.date(from: DateComponents(year: y, month: month, day: day)),
+                  let end = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: start))
+            else { continue }
+
+            let options = PHFetchOptions()
+            options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+            options.fetchLimit = max(0, limit - collected.count)
+            options.predicate = NSPredicate(
+                format: "(mediaType == %d OR mediaType == %d) AND (creationDate >= %@ AND creationDate < %@)",
+                PHAssetMediaType.image.rawValue,
+                PHAssetMediaType.video.rawValue,
+                calendar.startOfDay(for: start) as NSDate,
+                end as NSDate
+            )
+            let result = PHAsset.fetchAssets(with: options)
+            result.enumerateObjects { asset, _, stop in
+                collected.append(asset)
+                if collected.count >= limit { stop.pointee = true }
+            }
+            if collected.count >= limit { break }
+        }
+        return collected
+    }
+
+    /// Best-effort recap fallback: assets captured in the same **month** across previous years.
+    func recapAssetsThisMonth(referenceDay: Date, yearsBack: Int = 10, calendar: Calendar = .current, limit: Int = 25) -> [PHAsset] {
+        let comps = calendar.dateComponents([.month, .year], from: referenceDay)
+        guard let month = comps.month, let year = comps.year else { return [] }
+
+        var collected: [PHAsset] = []
+        for y in stride(from: year - 1, through: max(0, year - yearsBack), by: -1) {
+            guard let monthStart = calendar.date(from: DateComponents(year: y, month: month, day: 1)),
+                  let interval = calendar.dateInterval(of: .month, for: monthStart)
+            else { continue }
+
+            let options = PHFetchOptions()
+            options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+            options.fetchLimit = max(0, limit - collected.count)
+            options.predicate = NSPredicate(
+                format: "(mediaType == %d OR mediaType == %d) AND (creationDate >= %@ AND creationDate < %@)",
+                PHAssetMediaType.image.rawValue,
+                PHAssetMediaType.video.rawValue,
+                interval.start as NSDate,
+                interval.end as NSDate
+            )
+            let result = PHAsset.fetchAssets(with: options)
+            result.enumerateObjects { asset, _, stop in
+                collected.append(asset)
+                if collected.count >= limit { stop.pointee = true }
+            }
+            if collected.count >= limit { break }
+        }
+        return collected
+    }
 }

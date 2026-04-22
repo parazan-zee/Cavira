@@ -63,6 +63,66 @@ enum DataService {
         return settings
     }
 
+    /// One-time migration: convert legacy `Event` rows into `Story` rows, then delete the events.
+    ///
+    /// This lets us remove the Events concept from the product while preserving user history.
+    @MainActor
+    static func migrateEventsToStoriesIfNeeded(context: ModelContext) {
+        let settings = getOrCreateSettings(context: context)
+        guard settings.didMigrateEventsToStories == false else { return }
+
+        let eventDescriptor = FetchDescriptor<Event>(
+            sortBy: [SortDescriptor(\.startDate, order: .reverse)]
+        )
+        let events = (try? context.fetch(eventDescriptor)) ?? []
+        guard !events.isEmpty else {
+            settings.didMigrateEventsToStories = true
+            try? context.save()
+            return
+        }
+
+        for event in events {
+            // Build slides from the event's photos (sorted oldest → newest for story playback).
+            let orderedPhotos = event.photos.sorted { $0.capturedDate < $1.capturedDate }
+            var slides: [StorySlide] = []
+            slides.reserveCapacity(orderedPhotos.count)
+            for (idx, entry) in orderedPhotos.enumerated() {
+                let slide = StorySlide(order: idx, photo: entry)
+                context.insert(slide)
+                slides.append(slide)
+            }
+
+            let coverId: UUID? = {
+                if let cover = event.coverPhotoId { return cover }
+                return slides.first?.photo?.id
+            }()
+
+            let story = Story(
+                title: event.title,
+                storyDescription: event.eventDescription,
+                storyDate: event.startDate,
+                locationTag: event.locationTag,
+                peopleTags: event.peopleTags,
+                coverPhotoId: coverId,
+                slides: slides,
+                isPinned: event.isPinned,
+                createdDate: event.createdDate,
+                lastEditedDate: Date()
+            )
+            context.insert(story)
+
+            // Unlink old relationships to avoid dangling "event" UI/data paths.
+            for entry in event.photos {
+                entry.event = nil
+            }
+
+            context.delete(event)
+        }
+
+        settings.didMigrateEventsToStories = true
+        try? context.save()
+    }
+
     /// Deletes the SwiftData row; for `localCopy` also asks `photoStorage` to remove the file (no-op in Cavira v1).
     static func deletePhotoEntry(
         _ entry: PhotoEntry,

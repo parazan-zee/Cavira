@@ -2,24 +2,21 @@ import SwiftData
 import SwiftUI
 
 struct SearchView: View {
-    @Query(sort: \PhotoEntry.capturedDate, order: .reverse) private var photos: [PhotoEntry]
+    @Query(filter: #Predicate<PhotoEntry> { $0.isInHomeAlbum == true }, sort: \PhotoEntry.capturedDate, order: .reverse) private var photos: [PhotoEntry]
     @Query(sort: \LocationTag.name, order: .forward) private var locations: [LocationTag]
     @Query(sort: \PersonTag.displayName, order: .forward) private var people: [PersonTag]
-    @Query(sort: \Event.startDate, order: .reverse) private var events: [Event]
 
     @State private var query = ""
     @State private var isSearchPresented = true
 
     @State private var selectedLocationID: UUID?
     @State private var selectedPersonID: UUID?
-    @State private var selectedEventID: UUID?
 
     @State private var dateStart: Date?
     @State private var dateEnd: Date?
 
     @State private var showLocationPicker = false
     @State private var showPeoplePicker = false
-    @State private var showEventPicker = false
     @State private var showDatePicker = false
 
     private enum SortOrder: String, CaseIterable {
@@ -42,7 +39,6 @@ struct SearchView: View {
                     entry.title ?? "",
                     entry.notes ?? "",
                     entry.locationTag?.name ?? "",
-                    entry.event?.title ?? "",
                     entry.peopleTags.map(\.displayName).joined(separator: " "),
                 ]
                 return haystacks.joined(separator: "\n").lowercased().contains(needle)
@@ -57,10 +53,6 @@ struct SearchView: View {
                 entry.peopleTags.contains(where: { $0.id == selectedPersonID })
             }
         }
-        if let selectedEventID {
-            rows = rows.filter { $0.event?.id == selectedEventID }
-        }
-
         if let dateStart {
             rows = rows.filter { $0.capturedDate >= dateStart }
         }
@@ -111,7 +103,7 @@ struct SearchView: View {
                 EmptyStateView(
                     systemImage: "magnifyingglass",
                     title: photos.isEmpty ? "Nothing to search yet" : "No results",
-                    subtitle: photos.isEmpty ? "Add photos to your Cavira album, then search by title, location, people, or event." : "Try a different search or clear filters."
+                    subtitle: photos.isEmpty ? "Add photos to your Cavira album, then search by title, location, or people." : "Try a different search or clear filters."
                 )
             } else {
                 ScrollView {
@@ -152,7 +144,6 @@ struct SearchView: View {
         }
         .sheet(isPresented: $showLocationPicker) { locationPickerSheet }
         .sheet(isPresented: $showPeoplePicker) { peoplePickerSheet }
-        .sheet(isPresented: $showEventPicker) { eventPickerSheet }
         .sheet(isPresented: $showDatePicker) { dateRangeSheet }
     }
 
@@ -184,12 +175,6 @@ struct SearchView: View {
                     systemImage: "calendar",
                     isActive: dateStart != nil || dateEnd != nil
                 ) { showDatePicker = true }
-
-                filterChip(
-                    label: selectedEventID.flatMap { id in events.first(where: { $0.id == id })?.title } ?? "Event",
-                    systemImage: "sparkles",
-                    isActive: selectedEventID != nil
-                ) { showEventPicker = true }
             }
         }
     }
@@ -197,7 +182,6 @@ struct SearchView: View {
     private func clearFilters() {
         selectedLocationID = nil
         selectedPersonID = nil
-        selectedEventID = nil
         dateStart = nil
         dateEnd = nil
     }
@@ -309,49 +293,6 @@ struct SearchView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { showPeoplePicker = false }
-                        .foregroundStyle(CaviraTheme.accent)
-                }
-            }
-        }
-        .presentationDetents([.medium, .large])
-    }
-
-    private var eventPickerSheet: some View {
-        NavigationStack {
-            List {
-                Button("Any event") {
-                    selectedEventID = nil
-                    showEventPicker = false
-                }
-                .foregroundStyle(CaviraTheme.textSecondary)
-
-                ForEach(events, id: \.id) { ev in
-                    Button {
-                        selectedEventID = ev.id
-                        showEventPicker = false
-                    } label: {
-                        HStack {
-                            Text(ev.title)
-                                .foregroundStyle(CaviraTheme.textPrimary)
-                            Spacer()
-                            if selectedEventID == ev.id {
-                                Image(systemName: "checkmark")
-                                    .foregroundStyle(CaviraTheme.accent)
-                            }
-                        }
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .scrollContentBackground(.hidden)
-            .background(CaviraTheme.backgroundSecondary)
-            .navigationTitle("Event")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(CaviraTheme.barBackground, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") { showEventPicker = false }
                         .foregroundStyle(CaviraTheme.accent)
                 }
             }

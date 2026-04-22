@@ -9,8 +9,7 @@ struct HomeScreen: View {
     @Environment(\.openURL) private var openURL
     @Environment(\.scenePhase) private var scenePhase
 
-    @Query(sort: \PhotoEntry.capturedDate, order: .reverse) private var photos: [PhotoEntry]
-    @Query(sort: \Event.startDate, order: .reverse) private var events: [Event]
+    @Query(filter: #Predicate<PhotoEntry> { $0.isInHomeAlbum == true }, sort: \PhotoEntry.capturedDate, order: .reverse) private var photos: [PhotoEntry]
 
     /// Album entries with `mediaKind == .video` (Videos segment only).
     private var videoPhotos: [PhotoEntry] {
@@ -58,9 +57,7 @@ struct HomeScreen: View {
                         showRemoveConfirm = true
                     }
                 )
-            case .events:
-                HomeEventsSummaryView()
-            case .grid, .profile:
+            case .grid, .profile, .events:
                 GridView(photos: photos) { entry in
                     entryPendingRemoval = entry
                     showRemoveConfirm = true
@@ -78,7 +75,6 @@ struct HomeScreen: View {
                     Text("Grid").tag(HomeViewMode.grid)
                     Text("Timeline").tag(HomeViewMode.timeline)
                     Text("Videos").tag(HomeViewMode.videos)
-                    Text("Events").tag(HomeViewMode.events)
                 }
                 .pickerStyle(.segmented)
                 .accessibilityLabel("Home layout")
@@ -90,12 +86,10 @@ struct HomeScreen: View {
             }
         }
         .toolbarBackground(.visible, for: .navigationBar)
-        // Resolve `UUID` as **photo** (`PhotoEntry`) first, then **event** (`Event`) — avoids a second route type in `EventDetailView`.
+        // Resolve `UUID` as a `PhotoEntry` route.
         .navigationDestination(for: UUID.self) { id in
             if let entry = photos.first(where: { $0.id == id }) {
                 PhotoDetailView(entry: entry)
-            } else if let event = events.first(where: { $0.id == id }) {
-                EventDetailView(event: event)
             } else {
                 ContentUnavailableView(
                     "Unavailable",
@@ -107,9 +101,17 @@ struct HomeScreen: View {
         }
         .onAppear {
             let settings = DataService.getOrCreateSettings(context: modelContext)
-            let mode = settings.defaultHomeView == .profile ? HomeViewMode.grid : settings.defaultHomeView
+            let mode: HomeViewMode
+            switch settings.defaultHomeView {
+            case .events:
+                mode = .grid
+            case .profile:
+                mode = .grid
+            default:
+                mode = settings.defaultHomeView
+            }
             homeViewMode = mode
-            if settings.defaultHomeView == .profile {
+            if settings.defaultHomeView == .profile || settings.defaultHomeView == .events {
                 settings.defaultHomeView = .grid
                 try? modelContext.save()
             }
@@ -194,12 +196,9 @@ struct HomeScreen: View {
     private func removeFromAlbum(_ entry: PhotoEntry) {
         guard let services = appServices else { return }
         showRemoveConfirm = false
-        do {
-            try DataService.deletePhotoEntry(entry, context: modelContext, photoStorage: services.photoStorage)
-            services.photoImageLoader.clearCache()
-        } catch {
-            // Phase 12: surface errors.
-        }
+        entry.isInHomeAlbum = false
+        try? modelContext.save()
+        services.photoImageLoader.clearCache()
         entryPendingRemoval = nil
     }
 

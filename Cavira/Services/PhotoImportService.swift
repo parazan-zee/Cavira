@@ -9,21 +9,25 @@ enum PhotoImportService {
     @MainActor
     static func importPickerResults(
         _ results: [PHPickerResult],
-        event: Event?,
+        context: ModelContext,
+        photoLibrary: PhotoLibraryService
+    ) throws -> [PhotoEntry] {
+        let localIdentifiers = results.compactMap(\.assetIdentifier)
+        return try importLocalIdentifiers(localIdentifiers, context: context, photoLibrary: photoLibrary)
+    }
+
+    /// Returns new entries created for these local identifiers (existing rows are skipped).
+    @MainActor
+    static func importLocalIdentifiers(
+        _ localIdentifiers: [String],
         context: ModelContext,
         photoLibrary: PhotoLibraryService
     ) throws -> [PhotoEntry] {
         var touched: [PhotoEntry] = []
-        touched.reserveCapacity(results.count)
-        for result in results {
-            guard let lid = result.assetIdentifier else { continue }
-            if let existing = DataService.existingPhotoEntry(localIdentifier: lid, context: context) {
-                if let event {
-                    if existing.event?.id != event.id {
-                        existing.event = event
-                        touched.append(existing)
-                    }
-                }
+        touched.reserveCapacity(localIdentifiers.count)
+
+        for lid in localIdentifiers {
+            if DataService.existingPhotoEntry(localIdentifier: lid, context: context) != nil {
                 continue
             }
             guard let asset = photoLibrary.asset(for: lid) else { continue }
@@ -37,12 +41,12 @@ enum PhotoImportService {
                 storageMode: .reference,
                 mediaKind: mediaKind,
                 isLivePhoto: isLive,
-                capturedDate: asset.creationDate ?? .now,
-                event: event
+                capturedDate: asset.creationDate ?? .now
             )
             context.insert(entry)
             touched.append(entry)
         }
+
         if !touched.isEmpty {
             try context.save()
         }

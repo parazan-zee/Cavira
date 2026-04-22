@@ -3,25 +3,23 @@ import SwiftData
 import SwiftUI
 import UIKit
 
-/// How imported items attach to an occasion when **`presetEvent`** is nil.
-private enum ImportOccasionTarget: Hashable {
-    case newOccasion
-    case existing(UUID)
-}
-
 /// Confirmation step after picking library assets; performs reference-only import.
 struct ImportOptionsSheet: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.appServices) private var appServices
     @Environment(\.dismiss) private var dismiss
 
-    let pickerResults: [PHPickerResult]
-    /// When set (e.g. import from **`EventDetailView`**), items are linked to this occasion; the event picker is hidden.
-    var presetEvent: Event? = nil
+    private let localIdentifiers: [String]
 
-    @Query(sort: \Event.startDate, order: .reverse) private var events: [Event]
+    init(pickerResults: [PHPickerResult]) {
+        self.localIdentifiers = pickerResults.compactMap(\.assetIdentifier)
+    }
 
-    // Add-time metadata (Title → Location → People → Event)
+    init(localIdentifiers: [String]) {
+        self.localIdentifiers = localIdentifiers
+    }
+
+    // Add-time metadata (Title → Location → People)
     @State private var titleText: String = ""
     @State private var didAttemptAdd = false
 
@@ -33,34 +31,17 @@ struct ImportOptionsSheet: View {
     @State private var freeTextPerson = ""
     @State private var appliedPeopleTags: [PersonTag] = []
 
-    @State private var addToEvent = false
-    @State private var newOccasionTitle: String = ""
-    @State private var occasionTarget: ImportOccasionTarget = .newOccasion
     @State private var importErrorMessage: String?
     @State private var showImportMessageAlert = false
     @State private var isImporting = false
 
     private var itemCount: Int {
-        pickerResults.count
+        localIdentifiers.count
     }
 
     private var titleInvalid: Bool {
         guard itemCount == 1 else { return false }
         return didAttemptAdd && titleText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
-    /// `true` when “Add to an event” is on but the user has not satisfied title / picker rules.
-    private var occasionAssignmentInvalid: Bool {
-        guard presetEvent == nil, addToEvent else { return false }
-        if events.isEmpty {
-            return newOccasionTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        }
-        switch occasionTarget {
-        case .newOccasion:
-            return newOccasionTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        case .existing:
-            return false
-        }
     }
 
     var body: some View {
@@ -217,50 +198,6 @@ struct ImportOptionsSheet: View {
                 .task(id: peopleQuery) {
                     await refreshContactResults()
                 }
-
-                Section {
-                    if let locked = presetEvent {
-                        LabeledContent("Occasion") {
-                            Text(locked.title)
-                                .font(CaviraTheme.Typography.body)
-                                .foregroundStyle(CaviraTheme.textSecondary)
-                        }
-                        Text("New picks are added to your Cavira album and linked to this occasion.")
-                            .font(CaviraTheme.Typography.caption)
-                            .foregroundStyle(CaviraTheme.textTertiary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    } else {
-                        Toggle("Add to an event", isOn: $addToEvent)
-                            .tint(CaviraTheme.accent)
-                        if addToEvent {
-                            if events.isEmpty {
-                                Text("New occasion")
-                                    .font(CaviraTheme.Typography.caption)
-                                    .foregroundStyle(CaviraTheme.textTertiary)
-                                TextField("Occasion name", text: $newOccasionTitle)
-                                    .foregroundStyle(CaviraTheme.textPrimary)
-                                Text("A new occasion is created when you import. You can edit dates in Calendar.")
-                                    .font(CaviraTheme.Typography.caption)
-                                    .foregroundStyle(CaviraTheme.textTertiary)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            } else {
-                                Picker("Assign to", selection: $occasionTarget) {
-                                    Text("New occasion…").tag(ImportOccasionTarget.newOccasion)
-                                    ForEach(events, id: \.id) { ev in
-                                        Text(ev.title).tag(ImportOccasionTarget.existing(ev.id))
-                                    }
-                                }
-                                .tint(CaviraTheme.accent)
-
-                                if occasionTarget == .newOccasion {
-                                    TextField("New occasion name", text: $newOccasionTitle)
-                                        .foregroundStyle(CaviraTheme.textPrimary)
-                                }
-                            }
-                        }
-                    }
-                }
-                .listRowBackground(CaviraTheme.surfaceCard)
             }
             .scrollContentBackground(.hidden)
             .background(CaviraTheme.backgroundSecondary)
@@ -279,7 +216,7 @@ struct ImportOptionsSheet: View {
                     }
                         .fontWeight(.semibold)
                         .foregroundStyle(CaviraTheme.accent)
-                        .disabled(isImporting || occasionAssignmentInvalid)
+                        .disabled(isImporting)
                 }
             }
             .overlay {
@@ -297,12 +234,6 @@ struct ImportOptionsSheet: View {
             } message: {
                 Text(importErrorMessage ?? "")
             }
-            .onAppear {
-                guard presetEvent == nil else { return }
-                addToEvent = false
-                newOccasionTitle = ""
-                occasionTarget = events.first.map { .existing($0.id) } ?? .newOccasion
-            }
         }
     }
 
@@ -313,59 +244,42 @@ struct ImportOptionsSheet: View {
             return
         }
 
-        let event: Event? = {
-            if let presetEvent { return presetEvent }
-            guard addToEvent else { return nil }
-
-            if events.isEmpty {
-                let t = newOccasionTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !t.isEmpty else { return nil }
-                let e = Event(title: t, startDate: .now, endDate: nil, isPinned: false)
-                modelContext.insert(e)
-                try? modelContext.save()
-                return e
-            }
-
-            switch occasionTarget {
-            case .newOccasion:
-                let t = newOccasionTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !t.isEmpty else { return nil }
-                let e = Event(title: t, startDate: .now, endDate: nil, isPinned: false)
-                modelContext.insert(e)
-                try? modelContext.save()
-                return e
-            case .existing(let id):
-                return events.first { $0.id == id }
-            }
-        }()
-
-        if presetEvent == nil, addToEvent, event == nil {
-            importErrorMessage = "Enter an occasion name, pick an existing occasion, or turn off “Add to an event”."
-            showImportMessageAlert = true
-            return
-        }
-
         isImporting = true
         Task { @MainActor in
             defer { isImporting = false }
             do {
-                let touched = try PhotoImportService.importPickerResults(
-                    pickerResults,
-                    event: event,
+                let touched = try PhotoImportService.importLocalIdentifiers(
+                    localIdentifiers,
                     context: modelContext,
                     photoLibrary: services.photoLibrary
                 )
-                if touched.isEmpty, !pickerResults.isEmpty {
+                if touched.isEmpty, !localIdentifiers.isEmpty {
                     importErrorMessage = "Nothing new was added. Selected items may already be in your album."
                     showImportMessageAlert = true
                 } else {
+                    // Importing via this sheet always adds items to the Home album.
+                    // Apply to newly created entries…
+                    for entry in touched { entry.isInHomeAlbum = true }
                     applyMetadata(to: touched)
+                    // …and to any existing entries too (so Calendar → Add to Home uses the same form).
+                    applyMetadataToExistingIfNeeded()
                     dismiss()
                 }
             } catch {
                 importErrorMessage = error.localizedDescription
                 showImportMessageAlert = true
             }
+        }
+    }
+
+    @MainActor
+    private func applyMetadataToExistingIfNeeded() {
+        // When local identifiers already exist in SwiftData (e.g. story-only entry), import returns an empty touched list.
+        // We still want the shared form to apply metadata + mark as in Home album.
+        for lid in localIdentifiers {
+            guard let entry = DataService.existingPhotoEntry(localIdentifier: lid, context: modelContext) else { continue }
+            entry.isInHomeAlbum = true
+            applyMetadata(to: [entry])
         }
     }
 

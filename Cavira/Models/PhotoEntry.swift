@@ -20,6 +20,8 @@ final class PhotoEntry {
     var mediaKind: PhotoAssetKind
     /// Live Photo motion stays in the library; grid uses still only (see architecture doc).
     var isLivePhoto: Bool
+    /// If true, this entry appears in the Home album (Grid/Timeline/Videos). Story-only items can keep this false.
+    var isInHomeAlbum: Bool
     var capturedDate: Date
     var loggedDate: Date
     /// User-facing title for this photo/video (optional, set during import or later in Edit).
@@ -72,6 +74,7 @@ final class PhotoEntry {
         storageMode: StorageMode,
         mediaKind: PhotoAssetKind = .image,
         isLivePhoto: Bool = false,
+        isInHomeAlbum: Bool = true,
         capturedDate: Date,
         loggedDate: Date = Date(),
         title: String? = nil,
@@ -90,6 +93,7 @@ final class PhotoEntry {
         self.storageMode = storageMode
         self.mediaKind = mediaKind
         self.isLivePhoto = isLivePhoto
+        self.isInHomeAlbum = isInHomeAlbum
         self.capturedDate = capturedDate
         self.loggedDate = loggedDate
         self.title = title

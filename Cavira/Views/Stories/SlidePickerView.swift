@@ -1,3 +1,4 @@
+import Photos
 import SwiftData
 import SwiftUI
 
@@ -6,38 +7,38 @@ struct SlidePickerView<Next: View>: View {
     @Environment(\.appServices) private var appServices
     @Environment(\.modelContext) private var modelContext
 
-    @Query(sort: \PhotoEntry.capturedDate, order: .reverse) private var photos: [PhotoEntry]
+    var prefillAssetLocalIdentifiers: [String] = []
+    var sourceDay: Date? = nil
 
-    @State private var selectedIDs: Set<UUID> = []
+    @State private var assets: [PHAsset] = []
+    @State private var selectedLocalIdentifiers: Set<String> = []
     @State private var showCamera = false
 
     let next: ([PhotoEntry]) -> Next
 
-    private var selectedEntries: [PhotoEntry] {
-        photos.filter { selectedIDs.contains($0.id) }
-    }
-
     var body: some View {
         VStack(spacing: 0) {
-            if photos.isEmpty {
+            if assets.isEmpty {
                 EmptyStateView(
                     systemImage: "photo.on.rectangle",
                     title: "Nothing to add yet",
-                    subtitle: "Add photos or videos to your Cavira album, then build a story from them."
+                    subtitle: sourceDay == nil
+                        ? "Allow Photos access and start building a story from your gallery."
+                        : "No photos or videos were captured on this day."
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(CaviraTheme.backgroundPrimary)
             } else {
                 ScrollView {
                     LazyVGrid(columns: gridColumns, spacing: 4) {
-                        ForEach(photos, id: \.id) { entry in
+                        ForEach(assets, id: \.localIdentifier) { asset in
                             Button {
-                                toggle(entry.id)
+                                toggle(asset.localIdentifier)
                             } label: {
                                 ZStack(alignment: .topTrailing) {
-                                    PhotoThumbnailView(entry: entry)
+                                    PHAssetThumbnailView(asset: asset)
 
-                                    if selectedIDs.contains(entry.id) {
+                                    if selectedLocalIdentifiers.contains(asset.localIdentifier) {
                                         Image(systemName: "checkmark.circle.fill")
                                             .symbolRenderingMode(.palette)
                                             .foregroundStyle(CaviraTheme.accent, .black.opacity(0.35))
@@ -56,6 +57,12 @@ struct SlidePickerView<Next: View>: View {
                 bottomBar
             }
         }
+        .task {
+            await loadAssets()
+            if !prefillAssetLocalIdentifiers.isEmpty {
+                selectedLocalIdentifiers.formUnion(prefillAssetLocalIdentifiers)
+            }
+        }
         .sheet(isPresented: $showCamera) {
             CameraCaptureView { result in
                 switch result {
@@ -64,7 +71,7 @@ struct SlidePickerView<Next: View>: View {
                 case let .savedAsset(localIdentifier):
                     showCamera = false
                     Task { @MainActor in
-                        await importAndSelectCapturedAsset(localIdentifier: localIdentifier)
+                        await ensureEntryAndSelect(localIdentifier: localIdentifier)
                     }
                 }
             }
@@ -72,7 +79,7 @@ struct SlidePickerView<Next: View>: View {
         }
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
-                Text("\(selectedIDs.count) selected")
+                Text("\(selectedLocalIdentifiers.count) selected")
                     .font(CaviraTheme.Typography.caption)
                     .foregroundStyle(CaviraTheme.textTertiary)
             }
@@ -111,7 +118,7 @@ struct SlidePickerView<Next: View>: View {
                 .accessibilityLabel("Capture photo or video")
 
                 NavigationLink {
-                    next(selectedEntries)
+                    next(materializeSelectedEntries())
                 } label: {
                     Text("Next")
                         .font(CaviraTheme.Typography.body.weight(.semibold))
@@ -120,7 +127,7 @@ struct SlidePickerView<Next: View>: View {
                         .padding(.horizontal, 16)
                         .background(CaviraTheme.accent, in: Capsule())
                 }
-                .disabled(selectedIDs.isEmpty)
+                .disabled(selectedLocalIdentifiers.isEmpty)
             }
             .padding(.horizontal, CaviraTheme.Spacing.md)
             .padding(.bottom, CaviraTheme.Spacing.md)
@@ -128,48 +135,87 @@ struct SlidePickerView<Next: View>: View {
         .background(CaviraTheme.barBackground)
     }
 
-    private func toggle(_ id: UUID) {
-        if selectedIDs.contains(id) {
-            selectedIDs.remove(id)
+    private func toggle(_ localIdentifier: String) {
+        if selectedLocalIdentifiers.contains(localIdentifier) {
+            selectedLocalIdentifiers.remove(localIdentifier)
         } else {
-            selectedIDs.insert(id)
+            selectedLocalIdentifiers.insert(localIdentifier)
         }
     }
 
     @MainActor
-    private func importAndSelectCapturedAsset(localIdentifier: String) async {
+    private func ensureEntryAndSelect(localIdentifier: String) async {
         guard let services = appServices else { return }
-        if let existing = DataService.existingPhotoEntry(localIdentifier: localIdentifier, context: modelContext) {
-            selectedIDs.insert(existing.id)
-            return
+        selectedLocalIdentifiers.insert(localIdentifier)
+
+        // Ensure the asset appears near the top of the grid.
+        if let asset = services.photoLibrary.asset(for: localIdentifier) {
+            assets.removeAll(where: { $0.localIdentifier == localIdentifier })
+            assets.insert(asset, at: 0)
+        }
+    }
+
+    @MainActor
+    private func loadAssets() async {
+        guard let services = appServices else { return }
+        services.photoLibrary.refreshAuthorizationStatus()
+        switch services.photoLibrary.authorizationStatus {
+        case .authorized, .limited:
+            if let sourceDay {
+                assets = services.photoLibrary.assets(onDay: sourceDay)
+            } else {
+                let result = services.photoLibrary.fetchAllAssets()
+                var items: [PHAsset] = []
+                items.reserveCapacity(min(result.count, 2000))
+                result.enumerateObjects { asset, idx, stop in
+                    items.append(asset)
+                    if idx >= 1999 { stop.pointee = true }
+                }
+                assets = items
+            }
+        default:
+            assets = []
+        }
+    }
+
+    /// Creates/updates SwiftData `PhotoEntry` rows for the selected library assets, without adding them to Home.
+    @MainActor
+    private func materializeSelectedEntries() -> [PhotoEntry] {
+        guard let services = appServices else { return [] }
+
+        let selectedAssets: [PHAsset] = assets.filter { selectedLocalIdentifiers.contains($0.localIdentifier) }
+        let sortedAssets = selectedAssets.sorted { (a, b) in
+            (a.creationDate ?? .distantPast) < (b.creationDate ?? .distantPast)
         }
 
-        // Best effort: query Photos for accurate metadata.
-        let asset = services.photoLibrary.asset(for: localIdentifier)
-        let mediaKind: PhotoAssetKind
-        let isLive: Bool
-        let capturedDate: Date
-        if let asset {
-            mediaKind = asset.mediaType == .video ? .video : .image
-            isLive = asset.mediaType == .image && asset.mediaSubtypes.contains(.photoLive)
-            capturedDate = asset.creationDate ?? .now
-        } else {
-            mediaKind = .image
-            isLive = false
-            capturedDate = .now
+        var entries: [PhotoEntry] = []
+        entries.reserveCapacity(sortedAssets.count)
+
+        for asset in sortedAssets {
+            let lid = asset.localIdentifier
+            if let existing = DataService.existingPhotoEntry(localIdentifier: lid, context: modelContext) {
+                // Keep it Story-only unless the user explicitly adds it to Home elsewhere.
+                entries.append(existing)
+                continue
+            }
+
+            let mediaKind: PhotoAssetKind = asset.mediaType == .video ? .video : .image
+            let isLive = asset.mediaType == .image && asset.mediaSubtypes.contains(.photoLive)
+            let entry = PhotoEntry(
+                localIdentifier: lid,
+                storedFilename: nil,
+                storageMode: .reference,
+                mediaKind: mediaKind,
+                isLivePhoto: isLive,
+                isInHomeAlbum: false,
+                capturedDate: asset.creationDate ?? .now
+            )
+            modelContext.insert(entry)
+            entries.append(entry)
         }
 
-        let entry = PhotoEntry(
-            localIdentifier: localIdentifier,
-            storedFilename: nil,
-            storageMode: .reference,
-            mediaKind: mediaKind,
-            isLivePhoto: isLive,
-            capturedDate: capturedDate
-        )
-        modelContext.insert(entry)
         try? modelContext.save()
-        selectedIDs.insert(entry.id)
+        return entries
     }
 }
 

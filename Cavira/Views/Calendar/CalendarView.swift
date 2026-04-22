@@ -1,23 +1,14 @@
-import SwiftData
+import Photos
 import SwiftUI
 
-/// **Calendar** tab: read-only **Photos library** month counts + user **occasions** list.
-struct EventsListView: View {
+struct CalendarView: View {
     @Environment(\.appServices) private var appServices
     @Environment(\.scenePhase) private var scenePhase
 
-    @Query(sort: \Event.startDate, order: .reverse) private var events: [Event]
-
     @State private var displayedMonth = Date()
     @State private var dayCounts: [Int: Int] = [:]
-    @State private var showNewEvent = false
 
-    private var sortedEvents: [Event] {
-        events.sorted { a, b in
-            if a.isPinned != b.isPinned { return a.isPinned && !b.isPinned }
-            return a.startDate > b.startDate
-        }
-    }
+    @State private var selectedDay: Date?
 
     private var libraryBlocked: Bool {
         guard let s = appServices else { return true }
@@ -52,29 +43,13 @@ struct EventsListView: View {
                     displayedMonth: $displayedMonth,
                     dayCounts: dayCounts,
                     libraryBlocked: libraryBlocked,
-                    footerNote: calendarFooterNote
+                    footerNote: calendarFooterNote,
+                    onSelectDay: { date in
+                        selectedDay = date
+                    }
                 )
 
-                Text("Occasions")
-                    .font(CaviraTheme.Typography.headline)
-                    .foregroundStyle(CaviraTheme.textPrimary)
-
-                if sortedEvents.isEmpty {
-                    EmptyStateView(
-                        title: "Create your first event",
-                        subtitle: "Group holidays, trips, or moments — then add photos from + on Home or here after opening an event."
-                    )
-                    .padding(.vertical, CaviraTheme.Spacing.lg)
-                } else {
-                    LazyVStack(spacing: CaviraTheme.Spacing.md) {
-                        ForEach(sortedEvents, id: \.id) { event in
-                            NavigationLink(value: event.id) {
-                                EventCardView(event: event)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
+                RecapCarouselView(referenceDay: Date())
             }
             .padding(.horizontal, CaviraTheme.Spacing.md)
             .padding(.vertical, CaviraTheme.Spacing.md)
@@ -84,22 +59,18 @@ struct EventsListView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(CaviraTheme.barBackground, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                AlbumImportToolbarButton(accessibilityLabel: "New event") {
-                    showNewEvent = true
-                }
-            }
-        }
-        .sheet(isPresented: $showNewEvent) {
-            CreateEditEventView(existing: nil)
-        }
         .task(id: displayedMonth) {
             await refreshCounts()
         }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
             Task { await refreshCounts() }
+        }
+        .sheet(item: Binding(
+            get: { selectedDay.map(CalendarDaySheetItem.init(date:)) },
+            set: { newValue in if newValue == nil { selectedDay = nil } }
+        )) { item in
+            CalendarDayGridView(day: item.date)
         }
     }
 
@@ -119,9 +90,20 @@ struct EventsListView: View {
     }
 }
 
+private struct CalendarDaySheetItem: Identifiable, Equatable {
+    let id: UUID
+    let date: Date
+
+    init(date: Date) {
+        self.id = UUID()
+        self.date = date
+    }
+}
+
 #Preview {
     NavigationStack {
-        EventsListView()
+        CalendarView()
     }
     .caviraPreviewShell()
 }
+

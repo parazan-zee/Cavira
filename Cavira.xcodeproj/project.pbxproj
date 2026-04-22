@@ -29,10 +29,10 @@
 		0A0D5B9112B8A8A2D00A0A001 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A0D5B9012B8A8A2D00A0A001 /* RootView.swift */; };
 		0A0D5B9122B8A8A2D00A0A001 /* CaviraPreviewSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A0D5B9022B8A8A2D00A0A001 /* CaviraPreviewSupport.swift */; };
 		0A0D5B9132B8A8A2D00A0A001 /* HomeScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A0D5B9032B8A8A2D00A0A001 /* HomeScreen.swift */; };
-		F100HM0122B8A8A2D00A0A001 /* HomeEventsSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100HM0112B8A8A2D00A0A001 /* HomeEventsSummaryView.swift */; };
+		F100HM0122B8A8A2D00A0A001 /* PHAssetThumbnailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100HM0112B8A8A2D00A0A001 /* PHAssetThumbnailView.swift */; };
 		0A0D5B9142B8A8A2D00A0A001 /* HomeTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A0D5B9042B8A8A2D00A0A001 /* HomeTab.swift */; };
-		0A0D5B9152B8A8A2D00A0A001 /* EventsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A0D5B9052B8A8A2D00A0A001 /* EventsListView.swift */; };
-		0A0D5B9162B8A8A2D00A0A001 /* EventsTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A0D5B9062B8A8A2D00A0A001 /* EventsTab.swift */; };
+		0A0D5B9152B8A8A2D00A0A001 /* CalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A0D5B9052B8A8A2D00A0A001 /* CalendarView.swift */; };
+		0A0D5B9162B8A8A2D00A0A001 /* CalendarTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A0D5B9062B8A8A2D00A0A001 /* CalendarTab.swift */; };
 		0A0D5B9172B8A8A2D00A0A001 /* StoriesListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A0D5B9072B8A8A2D00A0A001 /* StoriesListView.swift */; };
 		0A0D5B9182B8A8A2D00A0A001 /* StoriesTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A0D5B9082B8A8A2D00A0A001 /* StoriesTab.swift */; };
 		0A0D5B93B2D8C8A2D00A0A001 /* StoryViewerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A0D5B93A2D8C8A2D00A0A001 /* StoryViewerView.swift */; };
@@ -49,7 +49,7 @@
 		E01D5B0012B8A8A2D00A0A001 /* PhotoPickerRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = E01D5B0112B8A8A2D00A0A001 /* PhotoPickerRepresentable.swift */; };
 		E01D5B0022B8A8A2D00A0A001 /* ImportOptionsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E01D5B0122B8A8A2D00A0A001 /* ImportOptionsSheet.swift */; };
 		E01D5B0032B8A8A2D00A0A001 /* PhotoImportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E01D5B0132B8A8A2D00A0A001 /* PhotoImportService.swift */; };
-		E01D5B0042B8A8A2D00A0A001 /* EventDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E01D5B0142B8A8A2D00A0A001 /* EventDetailView.swift */; };
+		E01D5B0042B8A8A2D00A0A001 /* CalendarDayGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E01D5B0142B8A8A2D00A0A001 /* CalendarDayGridView.swift */; };
 		F100PH0212B8A8A2D00A0A001 /* GridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100PH0012B8A8A2D00A0A001 /* GridView.swift */; };
 		F100PH0222B8A8A2D00A0A001 /* AlbumTimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100PH0022B8A8A2D00A0A001 /* AlbumTimelineView.swift */; };
 		F100PH0232B8A8A2D00A0A001 /* PhotoThumbnailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100PH0032B8A8A2D00A0A001 /* PhotoThumbnailView.swift */; };
@@ -58,8 +58,7 @@
 		F100PH0252B8A8A2D00A0A001 /* PhotoDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100PH0052B8A8A2D00A0A001 /* PhotoDetailView.swift */; };
 		F300TG0222B8A8A2D00A0A001 /* EditTagsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = F300TG0212B8A8A2D00A0A001 /* EditTagsSheet.swift */; };
 		F100TH0122B8A8A2D00A0A001 /* CaviraTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100TH0112B8A8A2D00A0A001 /* CaviraTheme.swift */; };
-		F200EV0122B8A8A2D00A0A001 /* EventCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F200EV0112B8A8A2D00A0A001 /* EventCardView.swift */; };
-		F200EV0222B8A8A2D00A0A001 /* CreateEditEventView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F200EV0212B8A8A2D00A0A001 /* CreateEditEventView.swift */; };
+		F200EV0122B8A8A2D00A0A001 /* RecapCarouselView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F200EV0112B8A8A2D00A0A001 /* RecapCarouselView.swift */; };
 		F200EV0322B8A8A2D00A0A001 /* LibraryMonthCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F200EV0312B8A8A2D00A0A001 /* LibraryMonthCalendarView.swift */; };
 		F200FAB0222B8A8A2D00A0A001 /* AlbumImportToolbarButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = F200FAB0212B8A8A2D00A0A001 /* AlbumImportToolbarButton.swift */; };
 /* End PBXBuildFile section */
@@ -90,10 +89,10 @@
 		0A0D5B9012B8A8A2D00A0A001 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		0A0D5B9022B8A8A2D00A0A001 /* CaviraPreviewSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaviraPreviewSupport.swift; sourceTree = "<group>"; };
 		0A0D5B9032B8A8A2D00A0A001 /* HomeScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeScreen.swift; sourceTree = "<group>"; };
-		F100HM0112B8A8A2D00A0A001 /* HomeEventsSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeEventsSummaryView.swift; sourceTree = "<group>"; };
+		F100HM0112B8A8A2D00A0A001 /* PHAssetThumbnailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PHAssetThumbnailView.swift; sourceTree = "<group>"; };
 		0A0D5B9042B8A8A2D00A0A001 /* HomeTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeTab.swift; sourceTree = "<group>"; };
-		0A0D5B9052B8A8A2D00A0A001 /* EventsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventsListView.swift; sourceTree = "<group>"; };
-		0A0D5B9062B8A8A2D00A0A001 /* EventsTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventsTab.swift; sourceTree = "<group>"; };
+		0A0D5B9052B8A8A2D00A0A001 /* CalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarView.swift; sourceTree = "<group>"; };
+		0A0D5B9062B8A8A2D00A0A001 /* CalendarTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarTab.swift; sourceTree = "<group>"; };
 		0A0D5B9072B8A8A2D00A0A001 /* StoriesListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoriesListView.swift; sourceTree = "<group>"; };
 		0A0D5B9082B8A8A2D00A0A001 /* StoriesTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoriesTab.swift; sourceTree = "<group>"; };
 		0A0D5B93A2D8C8A2D00A0A001 /* StoryViewerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoryViewerView.swift; sourceTree = "<group>"; };
@@ -110,7 +109,7 @@
 		E01D5B0112B8A8A2D00A0A001 /* PhotoPickerRepresentable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoPickerRepresentable.swift; sourceTree = "<group>"; };
 		E01D5B0122B8A8A2D00A0A001 /* ImportOptionsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportOptionsSheet.swift; sourceTree = "<group>"; };
 		E01D5B0132B8A8A2D00A0A001 /* PhotoImportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoImportService.swift; sourceTree = "<group>"; };
-		E01D5B0142B8A8A2D00A0A001 /* EventDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventDetailView.swift; sourceTree = "<group>"; };
+		E01D5B0142B8A8A2D00A0A001 /* CalendarDayGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarDayGridView.swift; sourceTree = "<group>"; };
 		F100PH0012B8A8A2D00A0A001 /* GridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridView.swift; sourceTree = "<group>"; };
 		F100PH0022B8A8A2D00A0A001 /* AlbumTimelineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlbumTimelineView.swift; sourceTree = "<group>"; };
 		F100PH0032B8A8A2D00A0A001 /* PhotoThumbnailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoThumbnailView.swift; sourceTree = "<group>"; };
@@ -119,8 +118,7 @@
 		F300TG0112B8A8A2D00A0A001 /* TagChipView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagChipView.swift; sourceTree = "<group>"; };
 		F300TG0212B8A8A2D00A0A001 /* EditTagsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditTagsSheet.swift; sourceTree = "<group>"; };
 		F100TH0112B8A8A2D00A0A001 /* CaviraTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaviraTheme.swift; sourceTree = "<group>"; };
-		F200EV0112B8A8A2D00A0A001 /* EventCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventCardView.swift; sourceTree = "<group>"; };
-		F200EV0212B8A8A2D00A0A001 /* CreateEditEventView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateEditEventView.swift; sourceTree = "<group>"; };
+		F200EV0112B8A8A2D00A0A001 /* RecapCarouselView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecapCarouselView.swift; sourceTree = "<group>"; };
 		F200EV0312B8A8A2D00A0A001 /* LibraryMonthCalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryMonthCalendarView.swift; sourceTree = "<group>"; };
 		F200FAB0212B8A8A2D00A0A001 /* AlbumImportToolbarButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlbumImportToolbarButton.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -215,7 +213,7 @@
 				0A0D5B9212B8A8A2D00A0A001 /* Home */,
 				F100PH0062B8A8A2D00A0A001 /* Components */,
 				E01D5B0152B8A8A2D00A0A001 /* Photo */,
-				0A0D5B9222B8A8A2D00A0A001 /* Events */,
+				0A0D5B9222B8A8A2D00A0A001 /* Calendar */,
 				0A0D5B9232B8A8A2D00A0A001 /* Stories */,
 				0A0D5B9242B8A8A2D00A0A001 /* Search */,
 				0A0D5B9252B8A8A2D00A0A001 /* Settings */,
@@ -229,6 +227,7 @@
 				F100PH0032B8A8A2D00A0A001 /* PhotoThumbnailView.swift */,
 				F100PH0042B8A8A2D00A0A001 /* EmptyStateView.swift */,
 				F300TG0112B8A8A2D00A0A001 /* TagChipView.swift */,
+				F100HM0112B8A8A2D00A0A001 /* PHAssetThumbnailView.swift */,
 				F200FAB0212B8A8A2D00A0A001 /* AlbumImportToolbarButton.swift */,
 			);
 			path = Components;
@@ -249,7 +248,6 @@
 			isa = PBXGroup;
 			children = (
 				0A0D5B9032B8A8A2D00A0A001 /* HomeScreen.swift */,
-				F100HM0112B8A8A2D00A0A001 /* HomeEventsSummaryView.swift */,
 				0A0D5B9042B8A8A2D00A0A001 /* HomeTab.swift */,
 				F100PH0012B8A8A2D00A0A001 /* GridView.swift */,
 				F100PH0022B8A8A2D00A0A001 /* AlbumTimelineView.swift */,
@@ -257,17 +255,16 @@
 			path = Home;
 			sourceTree = "<group>";
 		};
-		0A0D5B9222B8A8A2D00A0A001 /* Events */ = {
+		0A0D5B9222B8A8A2D00A0A001 /* Calendar */ = {
 			isa = PBXGroup;
 			children = (
-				0A0D5B9052B8A8A2D00A0A001 /* EventsListView.swift */,
+				0A0D5B9062B8A8A2D00A0A001 /* CalendarTab.swift */,
+				0A0D5B9052B8A8A2D00A0A001 /* CalendarView.swift */,
+				E01D5B0142B8A8A2D00A0A001 /* CalendarDayGridView.swift */,
 				F200EV0312B8A8A2D00A0A001 /* LibraryMonthCalendarView.swift */,
-				0A0D5B9062B8A8A2D00A0A001 /* EventsTab.swift */,
-				E01D5B0142B8A8A2D00A0A001 /* EventDetailView.swift */,
-				F200EV0112B8A8A2D00A0A001 /* EventCardView.swift */,
-				F200EV0212B8A8A2D00A0A001 /* CreateEditEventView.swift */,
+				F200EV0112B8A8A2D00A0A001 /* RecapCarouselView.swift */,
 			);
-			path = Events;
+			path = Calendar;
 			sourceTree = "<group>";
 		};
 		0A0D5B9232B8A8A2D00A0A001 /* Stories */ = {
@@ -386,7 +383,7 @@
 				0A0D5B9112B8A8A2D00A0A001 /* RootView.swift in Sources */,
 				0A0D5B9122B8A8A2D00A0A001 /* CaviraPreviewSupport.swift in Sources */,
 				0A0D5B9132B8A8A2D00A0A001 /* HomeScreen.swift in Sources */,
-				F100HM0122B8A8A2D00A0A001 /* HomeEventsSummaryView.swift in Sources */,
+				F100HM0122B8A8A2D00A0A001 /* PHAssetThumbnailView.swift in Sources */,
 				0A0D5B9142B8A8A2D00A0A001 /* HomeTab.swift in Sources */,
 				E01D5B0012B8A8A2D00A0A001 /* PhotoPickerRepresentable.swift in Sources */,
 				E01D5B0022B8A8A2D00A0A001 /* ImportOptionsSheet.swift in Sources */,
@@ -398,11 +395,10 @@
 				F300TG0122B8A8A2D00A0A001 /* TagChipView.swift in Sources */,
 				F200FAB0222B8A8A2D00A0A001 /* AlbumImportToolbarButton.swift in Sources */,
 				F300TG0222B8A8A2D00A0A001 /* EditTagsSheet.swift in Sources */,
-				0A0D5B9152B8A8A2D00A0A001 /* EventsListView.swift in Sources */,
-				0A0D5B9162B8A8A2D00A0A001 /* EventsTab.swift in Sources */,
-				E01D5B0042B8A8A2D00A0A001 /* EventDetailView.swift in Sources */,
-				F200EV0122B8A8A2D00A0A001 /* EventCardView.swift in Sources */,
-				F200EV0222B8A8A2D00A0A001 /* CreateEditEventView.swift in Sources */,
+				0A0D5B9152B8A8A2D00A0A001 /* CalendarView.swift in Sources */,
+				0A0D5B9162B8A8A2D00A0A001 /* CalendarTab.swift in Sources */,
+				E01D5B0042B8A8A2D00A0A001 /* CalendarDayGridView.swift in Sources */,
+				F200EV0122B8A8A2D00A0A001 /* RecapCarouselView.swift in Sources */,
 				F200EV0322B8A8A2D00A0A001 /* LibraryMonthCalendarView.swift in Sources */,
 				0A0D5B9172B8A8A2D00A0A001 /* StoriesListView.swift in Sources */,
 				0A0D5B9182B8A8A2D00A0A001 /* StoriesTab.swift in Sources */,

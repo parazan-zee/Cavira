@@ -1,11 +1,12 @@
 import Foundation
 
 enum StorageMode: String, Codable { case reference, localCopy }
-/// Home header layout. **`.profile`** is kept for SwiftData / migration only — UI is **Grid \| Timeline \| Videos \| Events** (see `archeticturedoc.md`).
+/// Home header layout. **`.profile`** is kept for SwiftData / migration only.
 enum HomeViewMode: String, Codable {
     case grid
     case timeline
     case videos
+    /// Legacy value kept for SwiftData migration; not shown in the UI.
     case events
     case profile
 }

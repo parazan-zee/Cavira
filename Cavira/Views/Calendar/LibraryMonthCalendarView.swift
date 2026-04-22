@@ -8,6 +8,8 @@ struct LibraryMonthCalendarView: View {
     let libraryBlocked: Bool
     /// Optional footnote (e.g. limited library or access not yet granted).
     let footerNote: String?
+    /// Called when the user taps a day cell.
+    var onSelectDay: ((Date) -> Void)? = nil
 
     @State private var showMonthYearJump = false
     @State private var jumpSelection: Date = .now
@@ -87,25 +89,37 @@ struct LibraryMonthCalendarView: View {
 
                     ForEach(gridCells) { cell in
                         if let day = cell.day {
-                            VStack(spacing: 2) {
-                                Text("\(day)")
-                                    .font(CaviraTheme.Typography.caption.weight(.semibold))
-                                    .foregroundStyle(CaviraTheme.textPrimary)
-                                if cell.count > 0 {
-                                    Text("\(cell.count)")
-                                        .font(CaviraTheme.Typography.micro)
-                                        .foregroundStyle(CaviraTheme.accent)
-                                } else {
-                                    Text(" ")
-                                        .font(CaviraTheme.Typography.micro)
+                            Button {
+                                guard let onSelectDay else { return }
+                                if let date = calendar.date(from: DateComponents(
+                                    year: calendar.component(.year, from: displayedMonth),
+                                    month: calendar.component(.month, from: displayedMonth),
+                                    day: day
+                                )) {
+                                    onSelectDay(date)
                                 }
+                            } label: {
+                                VStack(spacing: 2) {
+                                    Text("\(day)")
+                                        .font(CaviraTheme.Typography.caption.weight(.semibold))
+                                        .foregroundStyle(CaviraTheme.textPrimary)
+                                    if cell.count > 0 {
+                                        Text("\(cell.count)")
+                                            .font(CaviraTheme.Typography.micro)
+                                            .foregroundStyle(CaviraTheme.accent)
+                                    } else {
+                                        Text(" ")
+                                            .font(CaviraTheme.Typography.micro)
+                                    }
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 6)
+                                .background(
+                                    RoundedRectangle(cornerRadius: CaviraTheme.Radius.small)
+                                        .fill(CaviraTheme.surfaceCard.opacity(0.65))
+                                )
                             }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 6)
-                            .background(
-                                RoundedRectangle(cornerRadius: CaviraTheme.Radius.small)
-                                    .fill(CaviraTheme.surfaceCard.opacity(0.65))
-                            )
+                            .buttonStyle(.plain)
                             .accessibilityLabel("Day \(day), \(cell.count) library items")
                         } else {
                             Color.clear
@@ -223,3 +237,4 @@ private struct LibraryCalendarCell: Identifiable, Hashable {
         return cells
     }
 }
+

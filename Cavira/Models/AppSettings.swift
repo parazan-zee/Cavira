@@ -7,12 +7,15 @@ final class AppSettings {
     var defaultStorageMode: StorageMode
     var defaultHomeView: HomeViewMode
     var appearanceMode: AppearanceMode
+    /// One-time migration: convert legacy Events into Stories.
+    var didMigrateEventsToStories: Bool
 
     init() {
         id = UUID()
         defaultStorageMode = .reference
         defaultHomeView = .grid
         appearanceMode = .system
+        didMigrateEventsToStories = false
     }
 }
 
