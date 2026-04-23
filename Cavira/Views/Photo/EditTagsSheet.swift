@@ -27,7 +27,7 @@ struct EditTagsSheet: View {
             .background(CaviraTheme.backgroundSecondary)
             .navigationTitle("Edit")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(CaviraTheme.barBackground, for: .navigationBar)
+            .toolbarBackground(CaviraTheme.backgroundPrimary, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

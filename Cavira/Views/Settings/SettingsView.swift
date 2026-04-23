@@ -8,7 +8,7 @@ struct SettingsView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(CaviraTheme.backgroundPrimary)
             .navigationTitle("Settings")
-            .toolbarBackground(CaviraTheme.barBackground, for: .navigationBar)
+            .toolbarBackground(CaviraTheme.backgroundPrimary, for: .navigationBar)
             .accessibilityElement(children: .combine)
             .accessibilityLabel("Settings placeholder")
     }

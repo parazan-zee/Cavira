@@ -34,6 +34,7 @@
 		0A0D5B9152B8A8A2D00A0A001 /* CalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A0D5B9052B8A8A2D00A0A001 /* CalendarView.swift */; };
 		0A0D5B9162B8A8A2D00A0A001 /* CalendarTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A0D5B9062B8A8A2D00A0A001 /* CalendarTab.swift */; };
 		0A0D5B9172B8A8A2D00A0A001 /* StoriesListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A0D5B9072B8A8A2D00A0A001 /* StoriesListView.swift */; };
+		F24CEB0A23C4B00100C0FFEE /* StoryCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F24CEB0A23C4B00200C0FFEE /* StoryCardView.swift */; };
 		0A0D5B9182B8A8A2D00A0A001 /* StoriesTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A0D5B9082B8A8A2D00A0A001 /* StoriesTab.swift */; };
 		0A0D5B93B2D8C8A2D00A0A001 /* StoryViewerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A0D5B93A2D8C8A2D00A0A001 /* StoryViewerView.swift */; };
 		0A0D5B93D2D8C8A2D00A0A001 /* SlideRenderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A0D5B93C2D8C8A2D00A0A001 /* SlideRenderView.swift */; };
@@ -94,6 +95,7 @@
 		0A0D5B9052B8A8A2D00A0A001 /* CalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarView.swift; sourceTree = "<group>"; };
 		0A0D5B9062B8A8A2D00A0A001 /* CalendarTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarTab.swift; sourceTree = "<group>"; };
 		0A0D5B9072B8A8A2D00A0A001 /* StoriesListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoriesListView.swift; sourceTree = "<group>"; };
+		F24CEB0A23C4B00200C0FFEE /* StoryCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoryCardView.swift; sourceTree = "<group>"; };
 		0A0D5B9082B8A8A2D00A0A001 /* StoriesTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoriesTab.swift; sourceTree = "<group>"; };
 		0A0D5B93A2D8C8A2D00A0A001 /* StoryViewerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoryViewerView.swift; sourceTree = "<group>"; };
 		0A0D5B93C2D8C8A2D00A0A001 /* SlideRenderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SlideRenderView.swift; sourceTree = "<group>"; };
@@ -271,6 +273,7 @@
 			isa = PBXGroup;
 			children = (
 				0A0D5B9072B8A8A2D00A0A001 /* StoriesListView.swift */,
+				F24CEB0A23C4B00200C0FFEE /* StoryCardView.swift */,
 				0A0D5B9082B8A8A2D00A0A001 /* StoriesTab.swift */,
 				0A0D5B93A2D8C8A2D00A0A001 /* StoryViewerView.swift */,
 				0A0D5B93C2D8C8A2D00A0A001 /* SlideRenderView.swift */,
@@ -401,6 +404,7 @@
 				F200EV0122B8A8A2D00A0A001 /* RecapCarouselView.swift in Sources */,
 				F200EV0322B8A8A2D00A0A001 /* LibraryMonthCalendarView.swift in Sources */,
 				0A0D5B9172B8A8A2D00A0A001 /* StoriesListView.swift in Sources */,
+				F24CEB0A23C4B00100C0FFEE /* StoryCardView.swift in Sources */,
 				0A0D5B9182B8A8A2D00A0A001 /* StoriesTab.swift in Sources */,
 				0A0D5B93B2D8C8A2D00A0A001 /* StoryViewerView.swift in Sources */,
 				0A0D5B93D2D8C8A2D00A0A001 /* SlideRenderView.swift in Sources */,

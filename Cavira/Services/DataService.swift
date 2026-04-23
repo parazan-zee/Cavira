@@ -63,9 +63,9 @@ enum DataService {
         return settings
     }
 
-    /// One-time migration: convert legacy `Event` rows into `Story` rows, then delete the events.
+    /// One-time migration: convert legacy `Event` rows into `Story` rows, then delete the legacy rows.
     ///
-    /// This lets us remove the Events concept from the product while preserving user history.
+    /// This removes the old tab concept while preserving user history.
     @MainActor
     static func migrateEventsToStoriesIfNeeded(context: ModelContext) {
         let settings = getOrCreateSettings(context: context)

@@ -57,7 +57,7 @@ struct CalendarView: View {
         .background(CaviraTheme.backgroundPrimary)
         .navigationTitle("Calendar")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(CaviraTheme.barBackground, for: .navigationBar)
+        .toolbarBackground(CaviraTheme.backgroundPrimary, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
         .task(id: displayedMonth) {
             await refreshCounts()

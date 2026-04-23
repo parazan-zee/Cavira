@@ -11,11 +11,11 @@ Use this as the **inventory of shipped behaviour** before starting **Phase 7+**.
 
 | Area | In repo / working |
 |------|-------------------|
-| **Models** | SwiftData: `PhotoEntry` (incl. `mediaKind`, `isLivePhoto`, `localIdentifier`, **`isInHomeAlbum`**), `Story` (incl. **title, date, description, location, people, cover**), `StorySlide`, tags, `AppSettings` (`defaultHomeView`, `appearanceMode`, `defaultStorageMode`, **`didMigrateEventsToStories`**), `PhotoAssetKind`, `HomeViewMode` (`.grid`, `.timeline`, `.videos`, `.events` legacy-only, `.profile` migration-only). **Legacy in repo (to remove later):** `Event` + any `PhotoEntry.event` / `Story.event` wiring (see **Decision: Remove Events** below). **`appearanceMode` is not wired to the UI** in v1 — the app runs **Ranger dark** only (see Phase 5.5 / Phase 12). |
+| **Models** | SwiftData: `PhotoEntry` (incl. `mediaKind`, `isLivePhoto`, `localIdentifier`, **`isInHomeAlbum`**), `Story` (incl. **title, date, description, location, people, cover**), `StorySlide`, tags, `AppSettings` (`defaultHomeView`, `appearanceMode`, `defaultStorageMode`, legacy migration flag), `PhotoAssetKind`, `HomeViewMode` (`.grid`, `.timeline`, `.videos`, legacy-only cases kept for migration). **Legacy in repo (to remove later):** `Event` + any `PhotoEntry.event` / `Story.event` wiring (see **Decision: Retire legacy second tab concept** below). **`appearanceMode` is not wired to the UI** in v1 — the app runs **Ranger dark** only (see Phase 5.5 / Phase 12). |
 | **Theme** | **`Theme/CaviraTheme.swift`:** Ranger palette (`ranger_theme.md`); **hex literals match the spec exactly**. **`CaviraTheme.applyGlobalChrome()`** in **`CaviraApp`** (UIKit appearances: tab bar, nav bar, segmented control, table view). **`Assets.xcassets/AccentColor`** = **`#D4B96A`** (Ranger accent). **`RootView`:** `.preferredColorScheme(.dark)`, `.tint(CaviraTheme.accent)`, root **`backgroundPrimary`**. |
-| **Services** | `AppServices` + `Environment` (`AppServices?`); `PhotoLibraryService` (auth, `fetchAllAssets`, `assets(onDay:)`, recap helpers, **`assetCountsByDayInMonth`**, `asset(for:)`); `PhotoImageLoader`; `PhotoImportService` (reference import, dedupe by `localIdentifier`, **`importLocalIdentifiers`**); `PhotoStorageServing` / `NoOpPhotoStorage`; `LocationSearchService`, `ContactsService`, `DataService` (incl. **Events→Stories one-time migration**). |
+| **Services** | `AppServices` + `Environment` (`AppServices?`); `PhotoLibraryService` (auth, `fetchAllAssets`, `assets(onDay:)`, recap helpers, **`assetCountsByDayInMonth`**, `asset(for:)`); `PhotoImageLoader`; `PhotoImportService` (reference import, dedupe by `localIdentifier`, **`importLocalIdentifiers`**); `PhotoStorageServing` / `NoOpPhotoStorage`; `LocationSearchService`, `ContactsService`, `DataService` (incl. one-time legacy migration into Stories). |
 | **Shell** | `RootView` `TabView` (5 tabs); launch **`AppSettings`** bootstrap + **Photos** `requestAuthorization` task; `HomeTab` … `SettingsTab` each **one `NavigationStack`**. |
-| **Home** | Same as Phase 5.5 + **5**; segmented **Grid \| Timeline \| Videos** only (no Events concept). Home lists only `PhotoEntry.isInHomeAlbum == true`. **`AlbumImportToolbarButton`** on all segments; **`ImportOptionsSheet`** (Home Add form) is album-only; **single-item imports require a Title** (shown as **Title*** with red validation on Add); `navigationDestination(for: UUID.self)` resolves **photo** for `PhotoDetailView`. **Remove from album** toggles `isInHomeAlbum = false` (does not delete the row so Story-only references remain valid). |
+| **Home** | Same as Phase 5.5 + **5**; segmented **Grid \| Timeline \| Videos** only. Home lists only `PhotoEntry.isInHomeAlbum == true`. **`AlbumImportToolbarButton`** on all segments; **`ImportOptionsSheet`** (Home Add form) is album-only; **single-item imports require a Title** (shown as **Title*** with red validation on Add); `navigationDestination(for: UUID.self)` resolves **photo** for `PhotoDetailView`. **Remove from album** toggles `isInHomeAlbum = false` (does not delete the row so Story-only references remain valid). |
 | **Photo / import UI** | `Views/Photo/` picker + import sheet + detail; `Views/Components/` thumbnails + empty state; `Views/Home/` grid + timeline + `HomeScreen`. |
 | **Calendar tab** | **`LibraryMonthCalendarView`** (counts + **limited / not-determined** footnotes); **month title** opens **“Go to month”** sheet (**graphical `DatePicker`** + **Jump to today’s month** + **Go** / **Cancel**); prev/next chevrons unchanged; tapping a day opens a **day grid** of that day’s Photos assets (photos+videos, read-only from `PHAsset`). Tapping an item opens an **Options** sheet (**full height**) that reuses shared flows: **Add to Home** presents **the same `ImportOptionsSheet`** used on Home; **Add to Story** presents **the same `StoryBuilderView`** used on Stories (scoped to that day’s captures). **Below the calendar:** a **Recap** module (“On this date” / “This month”) that auto-flips through past photos (fade every ~5s). `scenePhase` .active and `.task(id: displayedMonth)` refresh month counts after jumps. |
 | **Placeholders** | Stories, Search, Settings bodies. |
@@ -115,7 +115,7 @@ Keep this table in sync with the Cavira codebase as phases finish. Each phase se
 - **Header toggle:** **Grid**, **Timeline**, and **Videos** — **Profile** is not shown (see historical note below).
 - **What “Profile” meant (historical):** `HomeViewMode.profile` was a **placeholder third layout** (Instagram-like **“your grid of posts”**), not account settings. **Not** a third home segment going forward; remove from UI and retire from the enum in a small model pass when convenient.
 
-#### Calendar tab (user-facing rename from “Events”)
+#### Calendar tab (second tab)
 - **Name:** Tab + nav title **Calendar**.
 - **Two layers (do not conflate):**
   1. **System library calendar (read-only):** “What did I capture on this day?” comes from **Apple Photos** — query **`PHAsset`** by **creation date** when building the month / day UI. This includes **everything** in the library the OS exposes for that day, **whether or not** the user added those items to the **Home digital album**. **No bulk import into SwiftData on app launch** — that would bloat the store and contradict curation; the Calendar surface **reads the library live** (with optional small in-memory cache later if profiling demands it).
@@ -130,18 +130,18 @@ Keep this table in sync with the Cavira codebase as phases finish. Each phase se
   - **This month** (fallback): show assets from the same month across years.
   - **Playback:** auto-advance every ~5 seconds with a soft fade.
   - **Source:** read-only `PHAsset` (not required to be in Cavira album).
-  - **No Events/Occasions layer**: the calendar is about *captured activity*, not planned events.
+- **No planned-event layer**: the calendar is about *captured activity*, not scheduling.
 
 ---
 
-### Decision: Remove Events (Occasions) — migrate to Stories
+### Decision: Retire legacy second tab concept — migrate history into Stories
 
-**Why:** Events/Occasions added a second “content bucket” that didn’t match the product direction. Stories is the better mental model for narrative recap, and Calendar is strictly a read-only “what did I capture” surface.
+**Why:** A second “event/occasion” bucket didn’t match the product direction. Stories is the better mental model for narrative recap, and Calendar is strictly a read-only “what did I capture” surface.
 
 **New model:**
 - **Calendar** = Photos-backed activity counts + day drill-in + recap carousel.
 - **Stories** = the only narrative/grouping feature inside Cavira.
-- **No Events UI** and no “Occasions” section in Calendar.
+- **No legacy tab UI** and no “Occasions” section in Calendar.
 
 **Migration (so we don’t lose history):**
 - Convert each existing `Event` into a `Story`:
@@ -219,7 +219,7 @@ Cavira/
 ├── Views/
 │   ├── Home/
 │   ├── Photo/
-│   ├── Events/
+│   ├── Calendar/
 │   ├── Stories/
 │   ├── Search/
 │   ├── Settings/
@@ -232,7 +232,7 @@ Cavira/
 ### Enums.swift
 ```swift
 enum StorageMode: String, Codable { case reference, localCopy }
-// `profile` kept for SwiftData migration; Home UI is Grid | Timeline | Videos | Events (see Cavira UX direction).
+// Legacy cases kept for SwiftData migration; Home UI is Grid | Timeline | Videos.
 enum HomeViewMode: String, Codable { case grid, timeline, videos, events, profile }
 enum AppearanceMode: String, Codable { case system, light, dark }
 
@@ -525,7 +525,7 @@ Mirror `RootView`: `HomeTab`, `CalendarTab`, `StoriesTab`, `SearchTab`, `Setting
 ### Views/Home/HomeScreen.swift
 - Centred `Text("Home")` (or equivalent placeholder).
 - `.navigationTitle("Home")`, `.navigationBarTitleDisplayMode(.inline)`.
-- **Instagram-style** segmented `Picker` for **Grid \| Timeline \| Videos \| Events** (drop Profile segment per **Cavira UX direction**); bind to `HomeViewMode` until enum is trimmed.
+- **Instagram-style** segmented `Picker` for **Grid \| Timeline \| Videos** (drop Profile segment per **Cavira UX direction**); bind to `HomeViewMode` until enum is trimmed.
 
 ### Views/Calendar/ (Calendar shell until refactor)
 - User-facing title **Calendar**; placeholder body until Phase 4–6 (month grid + counts from Photos).
@@ -633,7 +633,7 @@ For each `PHPickerResult`:
 - **Stretch:** implement a **centre tab-bar `+`** that invokes the **same** picker → options → import pipeline from **any tab**, without breaking “one NavigationStack per tab”. Document in code where the shared flow lives (e.g. small `ImportCoordinator` observable, or scene-level `@State` passed via environment).
 
 ## (Removed) EventDetailView
-- No Events concept in the product direction; keep Story builder as the grouping mechanism.
+- No separate “event” feature in the product direction; keep Story builder as the grouping mechanism.
 
 ## PhotoLibraryService
 - Keep `requestAuthorization()`; add **`requestAuthorisationIfNeeded() async -> Bool`** as a convenience if useful (authorised **or** limited → true).
@@ -983,7 +983,6 @@ If the user denies Contacts, show a non-blocking banner in the People section ex
 # PHASE 8 — Search
 **Build tracker:** ✅ Complete
 
-### Goal: Users can search across their **Cavira digital album** and metadata — e.g. **location**, **person**, “**everything with this person**”, **family**-style groupings, **selfies** (via tags / future heuristics), custom tags, notes, dates, linked **Events** / **Stories**.
 ### Goal: Users can search across their **Cavira digital album** and metadata — e.g. **location**, **person**, “**everything with this person**”, **family**-style groupings, **selfies** (via tags / future heuristics), custom tags, notes, dates, and Stories.
 
 ---
@@ -1053,10 +1052,10 @@ Search should feel instant for typical library sizes (up to ~2000 photos). No lo
 
 ### Goal: Users can create Instagram-style Stories (photos + videos) that play like a slideshow of a single memory (holiday / day out / graduation) without creating a separate media store.
 
-**List UX (per Cavira UX direction):** **StoriesListView** becomes a **horizontal shelf of cards** (separators between cards); each card uses a **full-bleed background image** with **title text on top**; **toolbar `+`** (top-right) creates a new story.
+**List UX (current implementation):** **StoriesListView** is a **vertical scroll** of **110pt-tall horizontal cards** using `StoryCardView` (cover on the left, metadata on the right), split into **Pinned** and **Recent** sections when pinned stories exist. Toolbar `+` creates a new story; tapping a card opens `StoryViewerView`.
 
 **Product decisions (locked for v1):**
-- **No Events concept:** Stories are the only narrative/grouping layer in v1.
+- Stories are the only narrative/grouping layer in v1.
 - **No photo-less slides** in v1.
 - **Slide order:** fixed by **date taken** (asset creation date); **no manual reorder** in v1.
 - **Playback timing:** **10 seconds per slide** by default; user can advance manually.
@@ -1076,7 +1075,7 @@ Build the Stories feature. This is the most complex part of the app. Build it in
 
 Product layout reminders (see Cavira UX direction):
 - Shelf of story cards; cover defaults to first slide but user can pick another.
-- Link stories to Events where applicable.
+- Stories are the only narrative/grouping layer; no linking to a separate “events” concept.
 
 ## Step 9a — Story Viewer first (simpler, validates data model)
 
@@ -1161,14 +1160,20 @@ Sticker overlay interaction:
     - **Cover** picker:
       - default = first slide
       - user can pick another image from **their library** (does not need to be in slides)
+      - **Important:** do not override the user's chosen cover on sheet dismiss / re-appear; only default to the first slide when `coverPhotoId` is still nil.
   - Saves Story + all StorySlide records to SwiftData
 
 ## Update StoriesListView.swift (Phase 3 placeholder):
-- @Query var stories: [Story] sorted by lastEditedDate descending
-- Stories shown as cards: cover photo + title + slide count + date
-- Tap → StoryViewerView
-- "New Story" button → StoryBuilderView
-- Long press → context menu: Edit, Delete
+- `@Query` stories sorted by `lastEditedDate` descending.
+- Render two sections:
+  - **Pinned** (only if any `story.isPinned == true`)
+  - **Recent** (all non-pinned stories)
+- Each row uses `StoryCardView`:
+  - Left: cover photo with overlays (**play**, **slide count**, **pin badge** when pinned)
+  - Right: title + optional event name, optional location, optional people, mini slide thumbnail strip, created date, and an ellipsis menu button
+- Tap → `StoryViewerView` (full-screen cover)
+- "+" → `StoryBuilderView`
+- Long press shows context menu: Pin/Unpin, Edit, Delete (confirm delete; photos are not deleted)
 
 ## Profile integration:
 - Defer **Profile pinned stories strip** and all story pinning UX to **Phase 11**.
@@ -1185,7 +1190,7 @@ Sticker overlay interaction:
 - [ ] Text overlays render at correct positions in viewer
 - [ ] Sticker overlays render at correct positions in viewer
 - [ ] SlidePickerView multi-select works
-- [ ] Selected slides are ordered by **date taken** (no manual reorder UI)
+- [ ] Selected slides show in a top strip and can be **drag-reordered**; grid badges update to match the new order
 - [ ] Capture button saves to Apple Photos and the new asset can be added as a slide
 - [ ] Text overlay can be added, dragged, rotated, resized, deleted in editor
 - [ ] Sticker overlay can be added, dragged, rotated, resized, deleted in editor
@@ -1276,7 +1281,7 @@ Layout (top to bottom):
    - Circle shows cover photo with story title below (truncated to 1 line)
    - If no pinned stories: hide this section
    - Tap → StoryViewerView
-3. (Optional) No “Events” strip in the no-events model. Keep Profile focused on Stories + Photos.
+3. (Optional) No legacy “events” strip. Keep Profile focused on Stories + Photos.
 4. "Your Photos" header with sort toggle (capturedDate asc/desc)
 5. Full photo grid (same LazyVGrid 3-column as GridView)
 
@@ -1365,7 +1370,7 @@ The functional import pipeline ships in **Phase 4**; **Phase 12** refines how it
 
 ## Data integrity:
 - If a Story has zero slides (edge case if user deleted all photos that were in slides): show a "This story has no photos" state in StoryViewerView instead of crashing
-// (No Events in the no-events model.)
+// (No legacy “events” concept.)
 - Ensure deleting a PhotoEntry that is used in StorySlides handles gracefully (set slide.photo = nil, show placeholder)
 
 ## Performance:

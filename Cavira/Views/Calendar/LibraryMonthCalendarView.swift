@@ -164,7 +164,7 @@ struct LibraryMonthCalendarView: View {
                 .background(CaviraTheme.backgroundSecondary)
                 .navigationTitle("Go to month")
                 .navigationBarTitleDisplayMode(.inline)
-                .toolbarBackground(CaviraTheme.barBackground, for: .navigationBar)
+                .toolbarBackground(CaviraTheme.backgroundPrimary, for: .navigationBar)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Cancel") {

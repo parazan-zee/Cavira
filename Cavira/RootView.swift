@@ -9,25 +9,48 @@ struct RootView: View {
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
+    @State private var selectedTab: Int = 0
 
     var body: some View {
         ZStack {
             CaviraTheme.backgroundPrimary.ignoresSafeArea()
-            TabView {
+            TabView(selection: $selectedTab) {
+
                 HomeTab()
-                    .tabItem { Label("Home", systemImage: "house") }
+                    .tabItem {
+                        Label("Home", systemImage: selectedTab == 0 ? "house.fill" : "house")
+                    }
+                    .tag(0)
 
                 CalendarTab()
-                    .tabItem { Label("Calendar", systemImage: "calendar") }
+                    .tabItem {
+                        Label(
+                            "Calendar",
+                            systemImage: selectedTab == 1 ? "calendar.circle.fill" : "calendar.circle"
+                        )
+                    }
+                    .tag(1)
 
                 StoriesTab()
-                    .tabItem { Label("Stories", systemImage: "film") }
+                    .tabItem {
+                        Label("Stories", systemImage: selectedTab == 2 ? "film.fill" : "film")
+                    }
+                    .tag(2)
 
                 SearchTab()
-                    .tabItem { Label("Search", systemImage: "magnifyingglass") }
+                    .tabItem {
+                        Label(
+                            "Search",
+                            systemImage: selectedTab == 3 ? "magnifyingglass.circle.fill" : "magnifyingglass.circle"
+                        )
+                    }
+                    .tag(3)
 
                 SettingsTab()
-                    .tabItem { Label("Settings", systemImage: "gearshape") }
+                    .tabItem {
+                        Label("Settings", systemImage: selectedTab == 4 ? "gearshape.fill" : "gearshape")
+                    }
+                    .tag(4)
             }
         }
         .preferredColorScheme(.dark)

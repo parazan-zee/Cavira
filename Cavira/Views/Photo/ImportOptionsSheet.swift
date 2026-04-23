@@ -203,7 +203,7 @@ struct ImportOptionsSheet: View {
             .background(CaviraTheme.backgroundSecondary)
             .navigationTitle(itemCount == 1 ? "Add 1 item" : "Add \(itemCount) items")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(CaviraTheme.barBackground, for: .navigationBar)
+            .toolbarBackground(CaviraTheme.backgroundPrimary, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }

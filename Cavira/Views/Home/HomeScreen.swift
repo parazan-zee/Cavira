@@ -68,7 +68,6 @@ struct HomeScreen: View {
         .background(CaviraTheme.backgroundPrimary)
         .navigationTitle("Cavira")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(CaviraTheme.barBackground, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .principal) {
                 Picker("Home layout", selection: $homeViewMode) {
@@ -85,7 +84,6 @@ struct HomeScreen: View {
                 }
             }
         }
-        .toolbarBackground(.visible, for: .navigationBar)
         // Resolve `UUID` as a `PhotoEntry` route.
         .navigationDestination(for: UUID.self) { id in
             if let entry = photos.first(where: { $0.id == id }) {

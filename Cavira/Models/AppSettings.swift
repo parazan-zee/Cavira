@@ -7,7 +7,7 @@ final class AppSettings {
     var defaultStorageMode: StorageMode
     var defaultHomeView: HomeViewMode
     var appearanceMode: AppearanceMode
-    /// One-time migration: convert legacy Events into Stories.
+    /// One-time migration: convert legacy items into Stories.
     var didMigrateEventsToStories: Bool
 
     init() {

@@ -124,7 +124,7 @@ struct SearchView: View {
         .background(CaviraTheme.backgroundPrimary)
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(CaviraTheme.barBackground, for: .navigationBar)
+        .toolbarBackground(CaviraTheme.backgroundPrimary, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
         .searchable(
             text: $query,
@@ -245,7 +245,7 @@ struct SearchView: View {
             .background(CaviraTheme.backgroundSecondary)
             .navigationTitle("Location")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(CaviraTheme.barBackground, for: .navigationBar)
+            .toolbarBackground(CaviraTheme.backgroundPrimary, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -288,7 +288,7 @@ struct SearchView: View {
             .background(CaviraTheme.backgroundSecondary)
             .navigationTitle("People")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(CaviraTheme.barBackground, for: .navigationBar)
+            .toolbarBackground(CaviraTheme.backgroundPrimary, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -341,7 +341,7 @@ struct SearchView: View {
             .background(CaviraTheme.backgroundSecondary)
             .navigationTitle("Date")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(CaviraTheme.barBackground, for: .navigationBar)
+            .toolbarBackground(CaviraTheme.backgroundPrimary, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

@@ -1,66 +1,183 @@
 import SwiftData
 import SwiftUI
 
-/// Stories shelf: horizontal row of story cards + toolbar `+`.
 struct StoriesListView: View {
-    @Query(sort: \Story.lastEditedDate, order: .reverse) private var stories: [Story]
-    @Query(sort: \PhotoEntry.capturedDate, order: .reverse) private var photos: [PhotoEntry]
+    @Environment(\.modelContext) private var context
+    @Query(sort: \Story.lastEditedDate, order: .reverse) private var allStories: [Story]
 
-    @State private var showBuilder = false
+    @State private var selectedStory: Story?
+    @State private var showingBuilder = false
+    @State private var showingEditBuilder = false
+    @State private var editPrefillLocalIdentifiers: [String] = []
+
+    @State private var storyForMenu: Story?
+    @State private var showActionsSheet = false
+    @State private var storyToDelete: Story?
+    @State private var showDeleteConfirm = false
+
+    private var pinnedStories: [Story] { allStories.filter(\.isPinned) }
+    private var recentStories: [Story] { allStories.filter { !$0.isPinned } }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: CaviraTheme.Spacing.md) {
-            if stories.isEmpty {
+        VStack(spacing: 0) {
+            if allStories.isEmpty {
                 EmptyStateView(
-                    systemImage: "film",
+                    systemImage: "film.stack",
                     title: "No stories yet",
-                    subtitle: "Create your first story from photos and videos in your Cavira album."
+                    subtitle: "Create your first story from your photos."
                 )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: CaviraTheme.Spacing.md) {
-                        ForEach(stories, id: \.id) { story in
-                            NavigationLink(value: story.id) {
-                                StoryCardView(story: story, allPhotos: photos)
-                            }
-                            .buttonStyle(.plain)
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 10) {
+                        if !pinnedStories.isEmpty {
+                            sectionLabel("Pinned")
+                                .padding(.horizontal, CaviraTheme.Spacing.lg)
+                                .padding(.top, CaviraTheme.Spacing.sm)
 
-                            if story.id != stories.last?.id {
-                                Rectangle()
-                                    .fill(CaviraTheme.border.opacity(0.6))
-                                    .frame(width: 1, height: 260)
-                                    .padding(.vertical, 28)
+                            ForEach(pinnedStories, id: \.id) { story in
+                                StoryCardView(
+                                    story: story,
+                                    onTap: { selectedStory = story },
+                                    onMenu: {
+                                        storyForMenu = story
+                                        showActionsSheet = true
+                                    }
+                                )
+                                .padding(.horizontal, CaviraTheme.Spacing.lg)
+                                .contextMenu { storyContextMenu(story) }
                             }
                         }
+
+                        if !recentStories.isEmpty {
+                            sectionLabel("Recent")
+                                .padding(.horizontal, CaviraTheme.Spacing.lg)
+                                .padding(.top, pinnedStories.isEmpty ? CaviraTheme.Spacing.sm : CaviraTheme.Spacing.lg)
+
+                            ForEach(recentStories, id: \.id) { story in
+                                StoryCardView(
+                                    story: story,
+                                    onTap: { selectedStory = story },
+                                    onMenu: {
+                                        storyForMenu = story
+                                        showActionsSheet = true
+                                    }
+                                )
+                                .padding(.horizontal, CaviraTheme.Spacing.lg)
+                                .contextMenu { storyContextMenu(story) }
+                            }
+                        }
+
+                        Spacer(minLength: CaviraTheme.Spacing.xl)
                     }
-                    .padding(.horizontal, CaviraTheme.Spacing.md)
-                    .padding(.vertical, CaviraTheme.Spacing.md)
+                    .padding(.top, CaviraTheme.Spacing.sm)
                 }
             }
-
-            Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(CaviraTheme.backgroundPrimary)
-        .navigationTitle("Stories")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(CaviraTheme.barBackground, for: .navigationBar)
+        .toolbarBackground(CaviraTheme.backgroundPrimary, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text("Stories")
+                    .font(CaviraTheme.Typography.headline)
+                    .foregroundStyle(CaviraTheme.textPrimary)
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
-                    showBuilder = true
+                    showingBuilder = true
                 } label: {
-                    Image(systemName: "plus.circle.fill")
-                        .symbolRenderingMode(.palette)
-                        .foregroundStyle(CaviraTheme.accent, CaviraTheme.surfaceCard.opacity(0.35))
+                    Image(systemName: "plus")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(CaviraTheme.accent)
+                        .frame(width: 34, height: 34)
+                        .background(CaviraTheme.surfaceCard)
+                        .clipShape(Circle())
                 }
                 .accessibilityLabel("New story")
             }
         }
-        .sheet(isPresented: $showBuilder) {
+        .fullScreenCover(item: $selectedStory) { story in
+            StoryViewerView(story: story)
+        }
+        .sheet(isPresented: $showingBuilder) {
             StoryBuilderView()
         }
+        .sheet(isPresented: $showingEditBuilder) {
+            StoryBuilderView(prefillAssetLocalIdentifiers: editPrefillLocalIdentifiers)
+        }
+        .confirmationDialog("Story", isPresented: $showActionsSheet, titleVisibility: .hidden, presenting: storyForMenu) { story in
+            Button(story.isPinned ? "Unpin from profile" : "Pin to profile") {
+                togglePin(story)
+            }
+            Button("Edit story") {
+                editPrefillLocalIdentifiers = story.orderedSlides.compactMap { $0.photo?.localIdentifier }
+                showingEditBuilder = true
+            }
+            Button("Delete story", role: .destructive) {
+                storyToDelete = story
+                showDeleteConfirm = true
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { _ in
+            Text("")
+        }
+        .onChange(of: showActionsSheet) { _, isShowing in
+            if !isShowing { storyForMenu = nil }
+        }
+        .alert("Delete story?", isPresented: $showDeleteConfirm, presenting: storyToDelete) { story in
+            Button("Delete", role: .destructive) { deleteStory(story) }
+            Button("Cancel", role: .cancel) {}
+        } message: { story in
+            Text("\"\(story.title)\" will be permanently deleted. Your photos will not be affected.")
+        }
+    }
+
+    private func sectionLabel(_ text: String) -> some View {
+        Text(text.uppercased())
+            .font(.system(size: 11, weight: .medium))
+            .foregroundStyle(CaviraTheme.textTertiary)
+            .kerning(0.6)
+    }
+
+    @ViewBuilder
+    private func storyContextMenu(_ story: Story) -> some View {
+        Button {
+            togglePin(story)
+        } label: {
+            Label(
+                story.isPinned ? "Unpin from profile" : "Pin to profile",
+                systemImage: story.isPinned ? "pin.slash" : "pin"
+            )
+        }
+
+        Button {
+            editPrefillLocalIdentifiers = story.orderedSlides.compactMap { $0.photo?.localIdentifier }
+            showingEditBuilder = true
+        } label: {
+            Label("Edit story", systemImage: "pencil")
+        }
+
+        Divider()
+
+        Button(role: .destructive) {
+            storyToDelete = story
+            showDeleteConfirm = true
+        } label: {
+            Label("Delete story", systemImage: "trash")
+        }
+    }
+
+    private func togglePin(_ story: Story) {
+        story.isPinned.toggle()
+        try? context.save()
+    }
+
+    private func deleteStory(_ story: Story) {
+        context.delete(story)
+        try? context.save()
     }
 }
 
@@ -69,91 +186,4 @@ struct StoriesListView: View {
         StoriesListView()
     }
     .caviraPreviewShell()
-}
-
-private struct StoryCardView: View {
-    let story: Story
-    let allPhotos: [PhotoEntry]
-
-    @Environment(\.appServices) private var appServices
-    @State private var cover: UIImage?
-
-    private var coverEntry: PhotoEntry? {
-        if let coverID = story.coverPhotoId,
-           let match = allPhotos.first(where: { $0.id == coverID }) {
-            return match
-        }
-        return story.orderedSlides.first?.photo
-    }
-
-    var body: some View {
-        ZStack(alignment: .topLeading) {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(CaviraTheme.surfaceCard)
-
-            Group {
-                if let cover {
-                    Image(uiImage: cover)
-                        .resizable()
-                        .scaledToFill()
-                } else {
-                    LinearGradient(
-                        colors: [
-                            CaviraTheme.surfacePhoto,
-                            CaviraTheme.surfaceCard,
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                }
-            }
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-
-            LinearGradient(
-                colors: [
-                    .black.opacity(0.55),
-                    .black.opacity(0.2),
-                    .clear,
-                ],
-                startPoint: .top,
-                endPoint: .center
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text(story.title)
-                    .font(.headline.weight(.semibold))
-                    .foregroundStyle(.white.opacity(0.95))
-                    .lineLimit(2)
-
-                Text(subtitleText)
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.72))
-            }
-            .padding(14)
-        }
-        .frame(width: 220, height: 320)
-        .clipped()
-        .task(id: story.id) {
-            await loadCover()
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("Story, \(story.title)")
-    }
-
-    private var subtitleText: String {
-        let count = story.slides.count
-        if count == 1 { return "1 slide" }
-        return "\(count) slides"
-    }
-
-    @MainActor
-    private func loadCover() async {
-        guard let entry = coverEntry else {
-            cover = nil
-            return
-        }
-        guard let loader = appServices?.photoImageLoader else { return }
-        cover = await loader.loadImage(for: entry, targetSize: CGSize(width: 680, height: 980))
-    }
 }
