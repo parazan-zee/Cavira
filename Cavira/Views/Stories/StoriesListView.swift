@@ -105,11 +105,7 @@ struct StoriesListView: View {
             StoryBuilderView()
         }
         .sheet(item: $storyToEdit) { story in
-            NavigationStack {
-                StoryDraftEditorView(editingStory: story) {
-                    storyToEdit = nil
-                }
-            }
+            StoryBuilderView(editingStory: story)
         }
         .confirmationDialog("Story", isPresented: $showActionsSheet, titleVisibility: .hidden, presenting: storyForMenu) { story in
             Button(story.isPinned ? "Unpin from profile" : "Pin to profile") {

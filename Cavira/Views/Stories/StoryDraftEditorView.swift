@@ -14,9 +14,9 @@ struct StoryDraftEditorView: View {
     @State private var isEditingText = false
     @State private var editingText = ""
 
-    init(selectedEntries: [PhotoEntry], onFinish: @escaping () -> Void) {
+    init(selectedEntries: [PhotoEntry], editingStory: Story? = nil, onFinish: @escaping () -> Void) {
         self.selectedEntries = selectedEntries
-        self.editingStory = nil
+        self.editingStory = editingStory
         self.onFinish = onFinish
         let slides = selectedEntries.enumerated().map { idx, entry in
             StorySlide(order: idx, photo: entry)

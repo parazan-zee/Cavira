@@ -6,20 +6,22 @@ import SwiftUI
 struct StoryBuilderView: View {
     @Environment(\.dismiss) private var dismiss
     var prefillAssetLocalIdentifiers: [String] = []
+    var editingStory: Story? = nil
     /// When provided, the slide picker is scoped to assets captured on this day only.
     var sourceDay: Date? = nil
 
     var body: some View {
         NavigationStack {
             SlidePickerView(
-                prefillAssetLocalIdentifiers: prefillAssetLocalIdentifiers,
+                prefillAssetLocalIdentifiers: editingStory?.orderedSlides.compactMap { $0.photo?.localIdentifier }
+                    ?? prefillAssetLocalIdentifiers,
                 sourceDay: sourceDay,
                 onCancel: { dismiss() }
             ) { selectedEntries in
                 let sorted = selectedEntries.sorted { $0.capturedDate < $1.capturedDate }
-                return StoryDraftEditorView(selectedEntries: sorted) { dismiss() }
+                return StoryDraftEditorView(selectedEntries: sorted, editingStory: editingStory) { dismiss() }
             }
-            .navigationTitle("New Story")
+            .navigationTitle(editingStory == nil ? "New Story" : "Edit Story")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(CaviraTheme.backgroundPrimary, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
