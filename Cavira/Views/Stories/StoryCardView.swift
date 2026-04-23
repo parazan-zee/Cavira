@@ -4,7 +4,9 @@ import SwiftUI
 struct StoryCardView: View {
     let story: Story
     var onTap: () -> Void
-    var onMenu: () -> Void
+    var onEdit: () -> Void
+    var onTogglePin: () -> Void
+    var onDelete: () -> Void
 
     @Environment(\.appServices) private var appServices
     @Environment(\.modelContext) private var modelContext
@@ -120,13 +122,39 @@ struct StoryCardView: View {
 
                     Spacer()
 
-                    Button(action: onMenu) {
-                        Image(systemName: "ellipsis")
-                            .font(.system(size: 14))
+                    Menu {
+                        Button {
+                            onEdit()
+                        } label: {
+                            Label("Edit story", systemImage: "pencil")
+                        }
+
+                        Button {
+                            onTogglePin()
+                        } label: {
+                            Label(
+                                story.isPinned ? "Unpin from profile" : "Pin to profile",
+                                systemImage: story.isPinned ? "pin.slash" : "pin"
+                            )
+                        }
+
+                        Divider()
+
+                        Button(role: .destructive) {
+                            onDelete()
+                        } label: {
+                            Label("Delete story", systemImage: "trash")
+                        }
+                    } label: {
+                        // Match PhotoDetailView's iOS-style trailing menu affordance,
+                        // but keep a generous hit target for reliability.
+                        Image(systemName: "pencil.circle")
+                            .font(.system(size: 22))
                             .foregroundStyle(CaviraTheme.textTertiary)
-                            .frame(width: 28, height: 28)
+                            .frame(width: 44, height: 44)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("Story actions")
                 }
             }
             .padding(.horizontal, 12)

@@ -33,6 +33,7 @@ struct ImportOptionsSheet: View {
 
     @State private var importErrorMessage: String?
     @State private var showImportMessageAlert = false
+    @State private var dismissAfterAlert = false
     @State private var isImporting = false
 
     private var itemCount: Int {
@@ -230,6 +231,10 @@ struct ImportOptionsSheet: View {
             .alert("Add", isPresented: $showImportMessageAlert) {
                 Button("OK", role: .cancel) {
                     importErrorMessage = nil
+                    if dismissAfterAlert {
+                        dismissAfterAlert = false
+                        dismiss()
+                    }
                 }
             } message: {
                 Text(importErrorMessage ?? "")
@@ -253,33 +258,43 @@ struct ImportOptionsSheet: View {
                     context: modelContext,
                     photoLibrary: services.photoLibrary
                 )
-                if touched.isEmpty, !localIdentifiers.isEmpty {
-                    importErrorMessage = "Nothing new was added. Selected items may already be in your album."
-                    showImportMessageAlert = true
-                } else {
-                    // Importing via this sheet always adds items to the Home album.
-                    // Apply to newly created entries…
-                    for entry in touched { entry.isInHomeAlbum = true }
-                    applyMetadata(to: touched)
-                    // …and to any existing entries too (so Calendar → Add to Home uses the same form).
-                    applyMetadataToExistingIfNeeded()
-                    dismiss()
+                // Importing via this sheet always adds items to the Home album, even if the entries
+                // already exist in SwiftData (e.g. created from Stories first).
+                var affectedById: [UUID: PhotoEntry] = [:]
+                for entry in touched {
+                    affectedById[entry.id] = entry
                 }
+                for lid in localIdentifiers {
+                    if let existing = DataService.existingPhotoEntry(localIdentifier: lid, context: modelContext) {
+                        affectedById[existing.id] = existing
+                    }
+                }
+
+                let affected = Array(affectedById.values)
+                if affected.isEmpty, !localIdentifiers.isEmpty {
+                    importErrorMessage = "Nothing new was added. Selected items may already be in your album."
+                    dismissAfterAlert = false
+                    showImportMessageAlert = true
+                    return
+                }
+
+                // Only show a message if *everything* selected is already in the Home album.
+                let alreadyInHomeCount = affected.filter { $0.isInHomeAlbum }.count
+                if alreadyInHomeCount == affected.count, !affected.isEmpty {
+                    importErrorMessage = "Already in your album. Pick something else to add."
+                    dismissAfterAlert = true
+                    showImportMessageAlert = true
+                    return
+                }
+
+                for entry in affected { entry.isInHomeAlbum = true }
+                applyMetadata(to: affected)
+                dismiss()
             } catch {
                 importErrorMessage = error.localizedDescription
+                dismissAfterAlert = false
                 showImportMessageAlert = true
             }
-        }
-    }
-
-    @MainActor
-    private func applyMetadataToExistingIfNeeded() {
-        // When local identifiers already exist in SwiftData (e.g. story-only entry), import returns an empty touched list.
-        // We still want the shared form to apply metadata + mark as in Home album.
-        for lid in localIdentifiers {
-            guard let entry = DataService.existingPhotoEntry(localIdentifier: lid, context: modelContext) else { continue }
-            entry.isInHomeAlbum = true
-            applyMetadata(to: [entry])
         }
     }
 

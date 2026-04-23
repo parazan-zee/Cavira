@@ -15,7 +15,7 @@ Use this as the **inventory of shipped behaviour** before starting **Phase 7+**.
 | **Theme** | **`Theme/CaviraTheme.swift`:** Ranger palette (`ranger_theme.md`); **hex literals match the spec exactly**. **`CaviraTheme.applyGlobalChrome()`** in **`CaviraApp`** (UIKit appearances: tab bar, nav bar, segmented control, table view). **`Assets.xcassets/AccentColor`** = **`#D4B96A`** (Ranger accent). **`RootView`:** `.preferredColorScheme(.dark)`, `.tint(CaviraTheme.accent)`, root **`backgroundPrimary`**. |
 | **Services** | `AppServices` + `Environment` (`AppServices?`); `PhotoLibraryService` (auth, `fetchAllAssets`, `assets(onDay:)`, recap helpers, **`assetCountsByDayInMonth`**, `asset(for:)`); `PhotoImageLoader`; `PhotoImportService` (reference import, dedupe by `localIdentifier`, **`importLocalIdentifiers`**); `PhotoStorageServing` / `NoOpPhotoStorage`; `LocationSearchService`, `ContactsService`, `DataService` (incl. one-time legacy migration into Stories). |
 | **Shell** | `RootView` `TabView` (5 tabs); launch **`AppSettings`** bootstrap + **Photos** `requestAuthorization` task; `HomeTab` … `SettingsTab` each **one `NavigationStack`**. |
-| **Home** | Same as Phase 5.5 + **5**; segmented **Grid \| Timeline \| Videos** only. Home lists only `PhotoEntry.isInHomeAlbum == true`. **`AlbumImportToolbarButton`** on all segments; **`ImportOptionsSheet`** (Home Add form) is album-only; **single-item imports require a Title** (shown as **Title*** with red validation on Add); `navigationDestination(for: UUID.self)` resolves **photo** for `PhotoDetailView`. **Remove from album** toggles `isInHomeAlbum = false` (does not delete the row so Story-only references remain valid). |
+| **Home** | Same as Phase 5.5 + **5**; segmented **Grid \| Timeline \| Videos** only. Home lists only `PhotoEntry.isInHomeAlbum == true`. **`AlbumImportToolbarButton`** on all segments; **`ImportOptionsSheet`** (Home Add form) is album-only; **single-item imports require a Title** (shown as **Title*** with red validation on Add). **Duplicate feedback:** if the user picks only items already in the Home album (`isInHomeAlbum == true`), show a short **“Already in your album”** alert and dismiss. `navigationDestination(for: UUID.self)` resolves **photo** for `PhotoDetailView`. **Remove from album** toggles `isInHomeAlbum = false` (does not delete the row so Story-only references remain valid). |
 | **Photo / import UI** | `Views/Photo/` picker + import sheet + detail; `Views/Components/` thumbnails + empty state; `Views/Home/` grid + timeline + `HomeScreen`. |
 | **Calendar tab** | **`LibraryMonthCalendarView`** (counts + **limited / not-determined** footnotes); **month title** opens **“Go to month”** sheet (**graphical `DatePicker`** + **Jump to today’s month** + **Go** / **Cancel**); prev/next chevrons unchanged; tapping a day opens a **day grid** of that day’s Photos assets (photos+videos, read-only from `PHAsset`). Tapping an item opens an **Options** sheet (**full height**) that reuses shared flows: **Add to Home** presents **the same `ImportOptionsSheet`** used on Home; **Add to Story** presents **the same `StoryBuilderView`** used on Stories (scoped to that day’s captures). **Below the calendar:** a **Recap** module (“On this date” / “This month”) that auto-flips through past photos (fade every ~5s). `scenePhase` .active and `.task(id: displayedMonth)` refresh month counts after jumps. |
 | **Placeholders** | Stories, Search, Settings bodies. |
@@ -29,8 +29,8 @@ Use this as the **inventory of shipped behaviour** before starting **Phase 7+**.
 | When | Focus |
 |------|--------|
 | **Next** | **Phase 9** — Stories shelf + viewer + builder. |
-| **Then** | **Phase 10** — Settings & storage; **Phase 11** — Profile & pinning. |
-| **Late v1** | **Phase 10** — Settings & storage (no alternate colour themes — **`CaviraTheme`** / Ranger is the only v1 skin); **Phase 11** — Profile & pinning. |
+| **Then** | **Phase 10** — Settings & storage; **Phase 11** — Pinning (no ProfileView). |
+| **Late v1** | **Phase 10** — Settings & storage (no alternate colour themes — **`CaviraTheme`** / Ranger is the only v1 skin); **Phase 11** — Pinning (no ProfileView). |
 | **Close v1** | **Phase 12** — Polish & QA: missing-asset UI, **import flow GUI**, **sticky timeline months** (if not done earlier), empty states everywhere, animations, app icon, memory, full walkthrough; **optional** polish: dark-mode **tint** tuning, **SwiftUI-only** tab/nav chrome (see Phase 12). |
 | **Backlog** (see **Additional improvements** + UX notes) | Centre tab **`+`** global import; Calendar **day detail** strip; Stories **~10 s** clips. |
 
@@ -64,7 +64,7 @@ Keep this table in sync with the Cavira codebase as phases finish. Each phase se
 | 8 — Search | ✅ Complete |
 | 9 — Stories | ✅ Complete |
 | 10 — Settings & storage | ✅ Complete |
-| 11 — Profile & pinning | ⏳ Not started |
+| 11 — Pinning (no ProfileView) | ✅ Complete |
 | 12 — Polish & QA | ⏳ Not started |
 
 ---
@@ -1052,7 +1052,7 @@ Search should feel instant for typical library sizes (up to ~2000 photos). No lo
 
 ### Goal: Users can create Instagram-style Stories (photos + videos) that play like a slideshow of a single memory (holiday / day out / graduation) without creating a separate media store.
 
-**List UX (current implementation):** **StoriesListView** is a **vertical scroll** of **110pt-tall horizontal cards** using `StoryCardView` (cover on the left, metadata on the right), split into **Pinned** and **Recent** sections when pinned stories exist. Toolbar `+` creates a new story; tapping a card opens `StoryViewerView`.
+**List UX (current implementation):** **StoriesListView** is a **vertical scroll** of **110pt-tall horizontal cards** using `StoryCardView` (cover on the left, metadata on the right), split into **Pinned** and **Recent** sections when pinned stories exist. Toolbar `+` creates a new story; tapping a card opens `StoryViewerView`. Each card has an anchored **actions menu** (iOS-style) on a **pencil-circle** button with a larger hit target (Edit / Pin / Delete).
 
 **Product decisions (locked for v1):**
 - Stories are the only narrative/grouping layer in v1.
@@ -1170,7 +1170,7 @@ Sticker overlay interaction:
   - **Recent** (all non-pinned stories)
 - Each row uses `StoryCardView`:
   - Left: cover photo with overlays (**play**, **slide count**, **pin badge** when pinned)
-  - Right: title + optional event name, optional location, optional people, mini slide thumbnail strip, created date, and an ellipsis menu button
+  - Right: title + optional event name, optional location, optional people, mini slide thumbnail strip, created date, and an anchored actions menu button (pencil-circle)
 - Tap → `StoryViewerView` (full-screen cover)
 - "+" → `StoryBuilderView`
 - Long press shows context menu: Pin/Unpin, Edit, Delete (confirm delete; photos are not deleted)
@@ -1261,58 +1261,25 @@ In v1, `AppSettings.defaultStorageMode` should remain `.reference` (or the UI om
 
 ---
 
-# PHASE 11 — Profile View & Pinning
-**Build tracker:** ⏳ Not started
+# PHASE 11 — Pinning (no ProfileView)
+**Build tracker:** ✅ Complete
 
-### Goal: ProfileView is fully built. Pinning events and stories works throughout the app.
+### Goal: Pinning works for Stories. **ProfileView is out of scope for v1** and is removed from this update.
 
 ---
 
-### Cursor Prompt — Phase 11
+### Shipped (repo)
+- **Stories pin/unpin:** `Story.isPinned` is toggled from `StoriesListView` (anchored actions menu + context menu).
+- **Pinned badge:** `StoryCardView` shows a pin badge when `story.isPinned == true`.
 
-```
-Complete the ProfileView and implement pinning throughout the app.
-
-## Views/Home/ProfileView.swift — full implementation
-
-Layout (top to bottom):
-1. Stats bar: "X Photos  |  X Stories" — large numbers, small labels
-2. Pinned Stories strip: horizontal ScrollView of story bubble circles (80x80 each)
-   - Circle shows cover photo with story title below (truncated to 1 line)
-   - If no pinned stories: hide this section
-   - Tap → StoryViewerView
-3. (Optional) No legacy “events” strip. Keep Profile focused on Stories + Photos.
-4. "Your Photos" header with sort toggle (capturedDate asc/desc)
-5. Full photo grid (same LazyVGrid 3-column as GridView)
-
-## PinnedBadgeView.swift (Component)
-```swift
-struct PinnedBadgeView: View {
-    // Small pin SF Symbol badge (pin.fill) shown in corner of pinned content cards
-    // Yellow/gold tint, small, overlaid on top-right of card
-}
-```
-
-## Pinning interactions:
-- Stories: long press on story card in StoriesListView → context menu → "Pin to Profile" / "Unpin"
-- Uses story.isPinned Bool in SwiftData
-
-## Custom layout note:
-For v1, the "custom layout" means the user controls which events and stories are pinned, and those float to the top of ProfileView. This is the extent of custom layout in v1. Full drag-to-reorder pinned items can be added in v2.
-
-Make sure ProfileView updates reactively when pins change (use @Query with appropriate sort descriptors).
-```
+### Deferred / removed
+- **ProfileView:** intentionally removed from v1 scope (no pinned bubbles strip, no profile stats, no profile grid).
 
 ---
 
 ### Phase 11 Test Checklist
-- [ ] ProfileView shows correct counts for photos, events, stories
-- [ ] Pinned stories appear as circular bubbles in the stories strip
-- [ ] Pinned events appear in the events strip
-- [ ] Tapping story bubble opens StoryViewerView
-- [ ] Pinning/unpinning a story via long press updates ProfileView instantly
-- [ ] Photo grid in ProfileView matches the same photos as GridView
-- [ ] Sort toggle on photo grid works
+- [ ] Stories can be pinned/unpinned from `StoriesListView`
+- [ ] Pinned stories render with a pin badge on their story card
 
 ---
 
@@ -1420,8 +1387,8 @@ Review the entire app for any obvious UI inconsistencies — font sizes, spacing
 | 8 | Search | Phases 5, 7 |
 | 9 | Stories | Phases 4, 5 |
 | 10 | Settings & storage (no alternate themes) | All prior phases |
-| 11 | Profile view & pinning | Phases 5, 6, 9 |
+| 11 | Pinning (no ProfileView) | Phase 9 |
 | 12 | Polish & QA (+ optional appearance / tint / SwiftUI chrome) | All phases |
 
 
-*Document version 1.13 — Cavira iOS App. **Shipped:** Phases 1–8 (see **Repo snapshot**). **Next:** Phase **9** (Stories). **Close v1:** Phase 12 + **Additional improvements** backlog. **Design note:** **`CaviraTheme`** / **`ranger_theme.md`** is the canonical v1 colour system; optional light/system appearance or palette work is **Phase 12** only, if approved. **Home:** toolbar segments **Grid \| Timeline \| Videos**; Calendar is capture-counts + day drill-in + recap; Stories are the only narrative/grouping layer.*
+*Document version 1.13 — Cavira iOS App. **Shipped:** Phases 1–11 (see **Repo snapshot**). **Next:** Phase **12** (Polish & QA). **Close v1:** Phase 12 + **Additional improvements** backlog. **Design note:** **`CaviraTheme`** / **`ranger_theme.md`** is the canonical v1 colour system; optional light/system appearance or palette work is **Phase 12** only, if approved. **Home:** toolbar segments **Grid \| Timeline \| Videos**; Calendar is capture-counts + day drill-in + recap; Stories are the only narrative/grouping layer.*

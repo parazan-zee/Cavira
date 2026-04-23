@@ -9,8 +9,6 @@ struct StoriesListView: View {
     @State private var showingBuilder = false
     @State private var storyToEdit: Story?
 
-    @State private var storyForMenu: Story?
-    @State private var showActionsSheet = false
     @State private var storyToDelete: Story?
     @State private var showDeleteConfirm = false
 
@@ -38,9 +36,11 @@ struct StoriesListView: View {
                                 StoryCardView(
                                     story: story,
                                     onTap: { selectedStory = story },
-                                    onMenu: {
-                                        storyForMenu = story
-                                        showActionsSheet = true
+                                    onEdit: { storyToEdit = story },
+                                    onTogglePin: { togglePin(story) },
+                                    onDelete: {
+                                        storyToDelete = story
+                                        showDeleteConfirm = true
                                     }
                                 )
                                 .padding(.horizontal, CaviraTheme.Spacing.lg)
@@ -57,9 +57,11 @@ struct StoriesListView: View {
                                 StoryCardView(
                                     story: story,
                                     onTap: { selectedStory = story },
-                                    onMenu: {
-                                        storyForMenu = story
-                                        showActionsSheet = true
+                                    onEdit: { storyToEdit = story },
+                                    onTogglePin: { togglePin(story) },
+                                    onDelete: {
+                                        storyToDelete = story
+                                        showDeleteConfirm = true
                                     }
                                 )
                                 .padding(.horizontal, CaviraTheme.Spacing.lg)
@@ -106,24 +108,6 @@ struct StoriesListView: View {
         }
         .sheet(item: $storyToEdit) { story in
             StoryBuilderView(editingStory: story)
-        }
-        .confirmationDialog("Story", isPresented: $showActionsSheet, titleVisibility: .hidden, presenting: storyForMenu) { story in
-            Button(story.isPinned ? "Unpin from profile" : "Pin to profile") {
-                togglePin(story)
-            }
-            Button("Edit story") {
-                storyToEdit = story
-            }
-            Button("Delete story", role: .destructive) {
-                storyToDelete = story
-                showDeleteConfirm = true
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: { _ in
-            Text("")
-        }
-        .onChange(of: showActionsSheet) { _, isShowing in
-            if !isShowing { storyForMenu = nil }
         }
         .alert("Delete story?", isPresented: $showDeleteConfirm, presenting: storyToDelete) { story in
             Button("Delete", role: .destructive) { deleteStory(story) }
