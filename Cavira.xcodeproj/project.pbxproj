@@ -57,6 +57,7 @@
 		F100PH0222B8A8A2D00A0A001 /* AlbumTimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100PH0022B8A8A2D00A0A001 /* AlbumTimelineView.swift */; };
 		F100PH0232B8A8A2D00A0A001 /* PhotoThumbnailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100PH0032B8A8A2D00A0A001 /* PhotoThumbnailView.swift */; };
 		F100PH0242B8A8A2D00A0A001 /* EmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100PH0042B8A8A2D00A0A001 /* EmptyStateView.swift */; };
+		F100PH0262B8A8A2D00A0A002 /* ActivityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100PH0062B8A8A2D00A0A002 /* ActivityView.swift */; };
 		F300TG0122B8A8A2D00A0A001 /* TagChipView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F300TG0112B8A8A2D00A0A001 /* TagChipView.swift */; };
 		F100PH0252B8A8A2D00A0A001 /* PhotoDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100PH0052B8A8A2D00A0A001 /* PhotoDetailView.swift */; };
 		F300TG0222B8A8A2D00A0A001 /* EditTagsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = F300TG0212B8A8A2D00A0A001 /* EditTagsSheet.swift */; };
@@ -121,6 +122,7 @@
 		F100PH0022B8A8A2D00A0A001 /* AlbumTimelineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlbumTimelineView.swift; sourceTree = "<group>"; };
 		F100PH0032B8A8A2D00A0A001 /* PhotoThumbnailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoThumbnailView.swift; sourceTree = "<group>"; };
 		F100PH0042B8A8A2D00A0A001 /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
+		F100PH0062B8A8A2D00A0A002 /* ActivityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityView.swift; sourceTree = "<group>"; };
 		F100PH0052B8A8A2D00A0A001 /* PhotoDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoDetailView.swift; sourceTree = "<group>"; };
 		F300TG0112B8A8A2D00A0A001 /* TagChipView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagChipView.swift; sourceTree = "<group>"; };
 		F300TG0212B8A8A2D00A0A001 /* EditTagsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditTagsSheet.swift; sourceTree = "<group>"; };
@@ -238,6 +240,7 @@
 				F300TG0112B8A8A2D00A0A001 /* TagChipView.swift */,
 				F100HM0112B8A8A2D00A0A001 /* PHAssetThumbnailView.swift */,
 				F200FAB0212B8A8A2D00A0A001 /* AlbumImportToolbarButton.swift */,
+				F100PH0062B8A8A2D00A0A002 /* ActivityView.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -405,6 +408,7 @@
 				F100PH0222B8A8A2D00A0A001 /* AlbumTimelineView.swift in Sources */,
 				F100PH0232B8A8A2D00A0A001 /* PhotoThumbnailView.swift in Sources */,
 				F100PH0242B8A8A2D00A0A001 /* EmptyStateView.swift in Sources */,
+				F100PH0262B8A8A2D00A0A002 /* ActivityView.swift in Sources */,
 				F300TG0122B8A8A2D00A0A001 /* TagChipView.swift in Sources */,
 				F200FAB0222B8A8A2D00A0A001 /* AlbumImportToolbarButton.swift in Sources */,
 				F300TG0222B8A8A2D00A0A001 /* EditTagsSheet.swift in Sources */,

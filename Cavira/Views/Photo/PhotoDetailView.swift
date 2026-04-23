@@ -19,6 +19,10 @@ struct PhotoDetailView: View {
     @State private var loadFailed = false
     @State private var showRemoveConfirm = false
     @State private var showEditTags = false
+    @State private var showShareSheet = false
+    @State private var shareItems: [Any] = []
+    @State private var shareErrorMessage: String?
+    @State private var showShareErrorAlert = false
 
     @State private var showPeopleOverlays = false
     @State private var isPlacingPeopleTag = false
@@ -138,8 +142,10 @@ struct PhotoDetailView: View {
                             }
                         }
                     }
-                    Button("Share", systemImage: "square.and.arrow.up") {}
-                        .disabled(true)
+                    Button("Share", systemImage: "square.and.arrow.up") {
+                        beginShare()
+                    }
+                    .disabled(appServices == nil)
                     Divider()
                     Button("Remove from album", systemImage: "rectangle.badge.minus", role: .destructive) {
                         showRemoveConfirm = true
@@ -164,6 +170,18 @@ struct PhotoDetailView: View {
         }
         .task {
             await loadMedia()
+        }
+        .sheet(isPresented: $showShareSheet) {
+            ActivityView(activityItems: shareItems)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+        }
+        .alert("Share", isPresented: $showShareErrorAlert) {
+            Button("OK", role: .cancel) {
+                shareErrorMessage = nil
+            }
+        } message: {
+            Text(shareErrorMessage ?? "Unable to share this item.")
         }
         .sheet(isPresented: $showEditTags) {
             EditTagsSheet(entry: entry)
@@ -205,6 +223,111 @@ struct PhotoDetailView: View {
                 }
             }
         }
+    }
+
+    @MainActor
+    private func beginShare() {
+        Task { @MainActor in
+            do {
+                let items = try await buildShareItems()
+                if items.isEmpty {
+                    shareErrorMessage = "Unable to share this item."
+                    showShareErrorAlert = true
+                    return
+                }
+                shareItems = items
+                showShareSheet = true
+            } catch {
+                shareErrorMessage = error.localizedDescription
+                showShareErrorAlert = true
+            }
+        }
+    }
+
+    private enum ShareError: LocalizedError {
+        case assetUnavailable
+        case exportFailed
+
+        var errorDescription: String? {
+            switch self {
+            case .assetUnavailable:
+                return "This item is no longer available in your Photos library."
+            case .exportFailed:
+                return "We couldn’t prepare this item for sharing."
+            }
+        }
+    }
+
+    @MainActor
+    private func buildShareItems() async throws -> [Any] {
+        guard let services = appServices,
+              let lid = entry.localIdentifier,
+              let asset = services.photoLibrary.asset(for: lid)
+        else {
+            throw ShareError.assetUnavailable
+        }
+
+        if let url = try await exportPrimaryResourceToTempURL(asset: asset) {
+            return [url]
+        }
+
+        // Fallback: share the currently loaded still image (JPEG) if available.
+        if let stillImage {
+            if let url = try writeJPEGToTempURL(image: stillImage, baseName: "cavira") {
+                return [url]
+            }
+            return [stillImage]
+        }
+
+        throw ShareError.exportFailed
+    }
+
+    /// Exports the primary Photos resource (image/video) to a temp file for sharing.
+    @MainActor
+    private func exportPrimaryResourceToTempURL(asset: PHAsset) async throws -> URL? {
+        let resources = PHAssetResource.assetResources(for: asset)
+        let primary: PHAssetResource? = {
+            // Prefer a video resource for videos; otherwise the best photo resource.
+            if asset.mediaType == .video {
+                return resources.first(where: { $0.type == .video }) ?? resources.first
+            } else {
+                return resources.first(where: { $0.type == .photo }) ?? resources.first
+            }
+        }()
+
+        guard let resource = primary else { return nil }
+
+        let ext: String = {
+            let orig = (resource.originalFilename as NSString).pathExtension
+            return orig.isEmpty ? (asset.mediaType == .video ? "mov" : "jpg") : orig
+        }()
+
+        let fileName = "cavira-share-\(UUID().uuidString).\(ext)"
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+
+        // Ensure no stale file exists.
+        try? FileManager.default.removeItem(at: url)
+
+        return try await withCheckedThrowingContinuation { continuation in
+            let options = PHAssetResourceRequestOptions()
+            options.isNetworkAccessAllowed = true
+            PHAssetResourceManager.default().writeData(for: resource, toFile: url, options: options) { error in
+                DispatchQueue.main.async {
+                    if let error {
+                        continuation.resume(throwing: error)
+                    } else {
+                        continuation.resume(returning: url)
+                    }
+                }
+            }
+        }
+    }
+
+    private func writeJPEGToTempURL(image: UIImage, baseName: String) throws -> URL? {
+        guard let data = image.jpegData(compressionQuality: 0.92) else { return nil }
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(baseName)-\(UUID().uuidString).jpg")
+        try data.write(to: url, options: [.atomic])
+        return url
     }
 
     private var peopleTagsOverlayPositioned: some View {
