@@ -35,6 +35,8 @@ struct ImportOptionsSheet: View {
     @State private var showImportMessageAlert = false
     @State private var dismissAfterAlert = false
     @State private var isImporting = false
+    @State private var importProgressCurrent: Int = 0
+    @State private var importProgressTotal: Int = 0
 
     private var itemCount: Int {
         localIdentifiers.count
@@ -48,6 +50,21 @@ struct ImportOptionsSheet: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(itemCount == 1 ? "Add 1 item" : "Add \(itemCount) items")
+                            .font(CaviraTheme.Typography.title)
+                            .foregroundStyle(CaviraTheme.textPrimary)
+
+                        Text("Add a title (required for single items), and optionally tag a location and people.")
+                            .font(CaviraTheme.Typography.caption)
+                            .foregroundStyle(CaviraTheme.textTertiary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(.vertical, 4)
+                }
+                .listRowBackground(CaviraTheme.backgroundSecondary)
+
                 Section {
                     if itemCount == 1 {
                         TextField("Title", text: $titleText)
@@ -202,7 +219,7 @@ struct ImportOptionsSheet: View {
             }
             .scrollContentBackground(.hidden)
             .background(CaviraTheme.backgroundSecondary)
-            .navigationTitle(itemCount == 1 ? "Add 1 item" : "Add \(itemCount) items")
+            .navigationTitle("Add")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(CaviraTheme.backgroundPrimary, for: .navigationBar)
             .toolbar {
@@ -222,10 +239,7 @@ struct ImportOptionsSheet: View {
             }
             .overlay {
                 if isImporting {
-                    ProgressView()
-                        .tint(CaviraTheme.accent)
-                        .padding()
-                        .background(CaviraTheme.surfaceElevated.opacity(0.95), in: RoundedRectangle(cornerRadius: CaviraTheme.Radius.medium))
+                    importProgressOverlay
                 }
             }
             .alert("Add", isPresented: $showImportMessageAlert) {
@@ -242,6 +256,34 @@ struct ImportOptionsSheet: View {
         }
     }
 
+    private var importProgressOverlay: some View {
+        let total = max(importProgressTotal, 1)
+        let current = min(max(importProgressCurrent, 0), total)
+        let progress = Double(current) / Double(total)
+
+        return VStack(spacing: 12) {
+            Text("Adding…")
+                .font(CaviraTheme.Typography.body.weight(.semibold))
+                .foregroundStyle(CaviraTheme.textPrimary)
+
+            ProgressView(value: progress)
+                .tint(CaviraTheme.accent)
+                .animation(.easeInOut(duration: 0.18), value: progress)
+
+            Text("\(current) of \(total)")
+                .font(CaviraTheme.Typography.caption)
+                .foregroundStyle(CaviraTheme.textTertiary)
+        }
+        .padding(16)
+        .frame(maxWidth: 260)
+        .background(CaviraTheme.surfaceElevated.opacity(0.96), in: RoundedRectangle(cornerRadius: CaviraTheme.Radius.medium, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: CaviraTheme.Radius.medium, style: .continuous)
+                .stroke(CaviraTheme.border, lineWidth: 1)
+        )
+        .transition(.scale.combined(with: .opacity))
+    }
+
     private func runImport() {
         guard let services = appServices else { return }
         if itemCount == 1, titleText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -250,13 +292,19 @@ struct ImportOptionsSheet: View {
         }
 
         isImporting = true
+        importProgressCurrent = 0
+        importProgressTotal = localIdentifiers.count
         Task { @MainActor in
             defer { isImporting = false }
             do {
                 let touched = try PhotoImportService.importLocalIdentifiers(
                     localIdentifiers,
                     context: modelContext,
-                    photoLibrary: services.photoLibrary
+                    photoLibrary: services.photoLibrary,
+                    onProgress: { current, total in
+                        importProgressCurrent = current
+                        importProgressTotal = total
+                    }
                 )
                 // Importing via this sheet always adds items to the Home album, even if the entries
                 // already exist in SwiftData (e.g. created from Stories first).
@@ -278,9 +326,11 @@ struct ImportOptionsSheet: View {
                     return
                 }
 
-                // Only show a message if *everything* selected is already in the Home album.
+                // Determine what will be newly added to Home vs already present in Home.
                 let alreadyInHomeCount = affected.filter { $0.isInHomeAlbum }.count
-                if alreadyInHomeCount == affected.count, !affected.isEmpty {
+                let willAddToHomeCount = affected.count - alreadyInHomeCount
+
+                if willAddToHomeCount == 0, !affected.isEmpty {
                     importErrorMessage = "Already in your album. Pick something else to add."
                     dismissAfterAlert = true
                     showImportMessageAlert = true
@@ -289,7 +339,15 @@ struct ImportOptionsSheet: View {
 
                 for entry in affected { entry.isInHomeAlbum = true }
                 applyMetadata(to: affected)
-                dismiss()
+
+                // If the user selected some duplicates, confirm what happened.
+                if alreadyInHomeCount > 0 {
+                    importErrorMessage = "\(alreadyInHomeCount) already in your album. \(willAddToHomeCount) added."
+                    dismissAfterAlert = true
+                    showImportMessageAlert = true
+                } else {
+                    dismiss()
+                }
             } catch {
                 importErrorMessage = error.localizedDescription
                 dismissAfterAlert = false

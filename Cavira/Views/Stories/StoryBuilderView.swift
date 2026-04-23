@@ -57,207 +57,18 @@ struct StorySaveView: View {
     @State private var coverPhotoId: UUID?
     @State private var showCoverPicker = false
     @State private var isSaving = false
+    @State private var saveErrorMessage: String?
+    @State private var showSaveErrorAlert = false
 
     var body: some View {
         VStack(spacing: CaviraTheme.Spacing.md) {
             Form {
-                Section {
-                    TextField("Story title", text: $titleText)
-                        .textInputAutocapitalization(.sentences)
-                        .foregroundStyle(CaviraTheme.textPrimary)
-
-                    Text("Give this story a short name so you can find it later.")
-                        .font(CaviraTheme.Typography.caption)
-                        .foregroundStyle(CaviraTheme.textTertiary)
-                        .fixedSize(horizontal: false, vertical: true)
-                } header: {
-                    Text("Title")
-                        .foregroundStyle(CaviraTheme.textSecondary)
-                }
-
-                Section {
-                    DatePicker("Date", selection: $storyDate, displayedComponents: [.date])
-                        .tint(CaviraTheme.accent)
-                } header: {
-                    Text("Date")
-                        .foregroundStyle(CaviraTheme.textSecondary)
-                }
-
-                Section {
-                    TextEditor(text: $storyDescription)
-                        .frame(minHeight: 90)
-                        .foregroundStyle(CaviraTheme.textPrimary)
-
-                    Text("Optional. Add a short note to remember what this story is about.")
-                        .font(CaviraTheme.Typography.caption)
-                        .foregroundStyle(CaviraTheme.textTertiary)
-                        .fixedSize(horizontal: false, vertical: true)
-                } header: {
-                    Text("Description")
-                        .foregroundStyle(CaviraTheme.textSecondary)
-                }
-
-                Section {
-                    if let appliedLocationTag {
-                        TagChipView(label: appliedLocationTag.name, systemImage: "mappin.and.ellipse") {
-                            self.appliedLocationTag = nil
-                        }
-                    } else {
-                        TextField("Search location", text: $locationQuery)
-                            .textInputAutocapitalization(.words)
-                            .autocorrectionDisabled()
-                            .foregroundStyle(CaviraTheme.textPrimary)
-
-                        if let s = appServices {
-                            ForEach(s.locationSearch.results) { r in
-                                Button {
-                                    Task { await selectLocationSuggestion(r.id) }
-                                } label: {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(r.name)
-                                            .font(CaviraTheme.Typography.body)
-                                            .foregroundStyle(CaviraTheme.textPrimary)
-                                        if !r.subtitle.isEmpty {
-                                            Text(r.subtitle)
-                                                .font(CaviraTheme.Typography.caption)
-                                                .foregroundStyle(CaviraTheme.textTertiary)
-                                        }
-                                    }
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                }
-                                .buttonStyle(.plain)
-                            }
-
-                            if !s.locationSearch.results.isEmpty {
-                                Text("Search powered by Apple Maps")
-                                    .font(CaviraTheme.Typography.micro)
-                                    .foregroundStyle(CaviraTheme.textTertiary)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(.top, CaviraTheme.Spacing.xs)
-                            }
-                        }
-                    }
-                } header: {
-                    Text("Location")
-                        .foregroundStyle(CaviraTheme.textSecondary)
-                }
-                .task(id: locationQuery) {
-                    guard appliedLocationTag == nil else { return }
-                    guard let s = appServices else { return }
-                    await s.locationSearch.search(query: locationQuery)
-                }
-
-                Section {
-                    if !appliedPeopleTags.isEmpty {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: CaviraTheme.Spacing.sm) {
-                                ForEach(appliedPeopleTags, id: \.id) { p in
-                                    TagChipView(label: p.displayName, systemImage: "person.fill") {
-                                        appliedPeopleTags.removeAll(where: { $0.id == p.id })
-                                    }
-                                }
-                            }
-                            .padding(.vertical, 4)
-                        }
-                    }
-
-                    TextField("Search contacts", text: $peopleQuery)
-                        .textInputAutocapitalization(.words)
-                        .autocorrectionDisabled()
-                        .foregroundStyle(CaviraTheme.textPrimary)
-
-                    if let contacts = appServices?.contacts {
-                        switch contacts.authorizationStatus {
-                        case .authorized:
-                            ForEach(contactResults) { r in
-                                Button {
-                                    addContactPerson(r)
-                                } label: {
-                                    HStack(spacing: CaviraTheme.Spacing.md) {
-                                        Text(r.displayName)
-                                            .font(CaviraTheme.Typography.body)
-                                            .foregroundStyle(CaviraTheme.textPrimary)
-                                        Spacer(minLength: 0)
-                                    }
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        case .notDetermined:
-                            Button("Allow Contacts access") {
-                                Task { _ = await contacts.requestAuthorization() }
-                            }
-                            .foregroundStyle(CaviraTheme.accent)
-                        default:
-                            Text("Contacts access is off. You can still add free-text tags below.")
-                                .font(CaviraTheme.Typography.caption)
-                                .foregroundStyle(CaviraTheme.textTertiary)
-                        }
-                    }
-
-                    Divider()
-
-                    HStack(spacing: CaviraTheme.Spacing.md) {
-                        TextField("Add a person (free text)", text: $freeTextPerson)
-                            .textInputAutocapitalization(.words)
-                            .autocorrectionDisabled()
-                            .foregroundStyle(CaviraTheme.textPrimary)
-                        Button("Add") { addFreeTextPerson() }
-                            .foregroundStyle(CaviraTheme.accent)
-                            .disabled(freeTextPerson.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    }
-                } header: {
-                    Text("People")
-                        .foregroundStyle(CaviraTheme.textSecondary)
-                }
-                .task(id: peopleQuery) {
-                    await refreshContactResults()
-                }
-
-                Section {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 10) {
-                            ForEach(draftSlides.compactMap(\.photo), id: \.id) { entry in
-                                Button {
-                                    coverPhotoId = entry.id
-                                } label: {
-                                    ZStack(alignment: .topTrailing) {
-                                        PhotoThumbnailView(entry: entry)
-                                            .frame(width: 72, height: 72)
-                                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                                            .overlay(
-                                                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                                    .stroke(
-                                                        (coverPhotoId ?? defaultCoverID) == entry.id ? CaviraTheme.accent : .clear,
-                                                        lineWidth: 2
-                                                    )
-                                            )
-
-                                        if (coverPhotoId ?? defaultCoverID) == entry.id {
-                                            Image(systemName: "checkmark.circle.fill")
-                                                .symbolRenderingMode(.palette)
-                                                .foregroundStyle(CaviraTheme.accent, .black.opacity(0.35))
-                                                .padding(6)
-                                        }
-                                    }
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                        .padding(.vertical, 6)
-                    }
-
-                    Text("Cover defaults to the first slide. Tap to change.")
-                        .font(CaviraTheme.Typography.caption)
-                        .foregroundStyle(CaviraTheme.textTertiary)
-
-                    Button("Choose a different cover from your library") {
-                        showCoverPicker = true
-                    }
-                    .foregroundStyle(CaviraTheme.accent)
-                } header: {
-                    Text("Cover")
-                        .foregroundStyle(CaviraTheme.textSecondary)
-                }
+                titleSection
+                dateSection
+                descriptionSection
+                locationSection
+                peopleSection
+                coverSection
             }
             .scrollContentBackground(.hidden)
             .background(CaviraTheme.backgroundSecondary)
@@ -302,6 +113,229 @@ struct StorySaveView: View {
             }
             .ignoresSafeArea()
         }
+        .alert("Save story", isPresented: $showSaveErrorAlert) {
+            Button("OK", role: .cancel) { saveErrorMessage = nil }
+        } message: {
+            Text(saveErrorMessage ?? "")
+        }
+    }
+
+    private var coverEntries: [PhotoEntry] {
+        draftSlides.compactMap(\.photo)
+    }
+
+    private var titleSection: some View {
+        Section {
+            TextField("Story title", text: $titleText)
+                .textInputAutocapitalization(.sentences)
+                .foregroundStyle(CaviraTheme.textPrimary)
+
+            Text("Give this story a short name so you can find it later.")
+                .font(CaviraTheme.Typography.caption)
+                .foregroundStyle(CaviraTheme.textTertiary)
+                .fixedSize(horizontal: false, vertical: true)
+        } header: {
+            Text("Title")
+                .foregroundStyle(CaviraTheme.textSecondary)
+        }
+    }
+
+    private var dateSection: some View {
+        Section {
+            DatePicker("Date", selection: $storyDate, displayedComponents: [.date])
+                .tint(CaviraTheme.accent)
+        } header: {
+            Text("Date")
+                .foregroundStyle(CaviraTheme.textSecondary)
+        }
+    }
+
+    private var descriptionSection: some View {
+        Section {
+            TextEditor(text: $storyDescription)
+                .frame(minHeight: 90)
+                .foregroundStyle(CaviraTheme.textPrimary)
+
+            Text("Optional. Add a short note to remember what this story is about.")
+                .font(CaviraTheme.Typography.caption)
+                .foregroundStyle(CaviraTheme.textTertiary)
+                .fixedSize(horizontal: false, vertical: true)
+        } header: {
+            Text("Description")
+                .foregroundStyle(CaviraTheme.textSecondary)
+        }
+    }
+
+    private var locationSection: some View {
+        Section {
+            if let appliedLocationTag {
+                TagChipView(label: appliedLocationTag.name, systemImage: "mappin.and.ellipse") {
+                    self.appliedLocationTag = nil
+                }
+            } else {
+                TextField("Search location", text: $locationQuery)
+                    .textInputAutocapitalization(.words)
+                    .autocorrectionDisabled()
+                    .foregroundStyle(CaviraTheme.textPrimary)
+
+                if let s = appServices {
+                    ForEach(s.locationSearch.results) { r in
+                        Button {
+                            Task { await selectLocationSuggestion(r.id) }
+                        } label: {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(r.name)
+                                    .font(CaviraTheme.Typography.body)
+                                    .foregroundStyle(CaviraTheme.textPrimary)
+                                if !r.subtitle.isEmpty {
+                                    Text(r.subtitle)
+                                        .font(CaviraTheme.Typography.caption)
+                                        .foregroundStyle(CaviraTheme.textTertiary)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    if !s.locationSearch.results.isEmpty {
+                        Text("Search powered by Apple Maps")
+                            .font(CaviraTheme.Typography.micro)
+                            .foregroundStyle(CaviraTheme.textTertiary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.top, CaviraTheme.Spacing.xs)
+                    }
+                }
+            }
+        } header: {
+            Text("Location")
+                .foregroundStyle(CaviraTheme.textSecondary)
+        }
+        .task(id: locationQuery) {
+            guard appliedLocationTag == nil else { return }
+            guard let s = appServices else { return }
+            await s.locationSearch.search(query: locationQuery)
+        }
+    }
+
+    private var peopleSection: some View {
+        Section {
+            if !appliedPeopleTags.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: CaviraTheme.Spacing.sm) {
+                        ForEach(appliedPeopleTags, id: \.id) { p in
+                            TagChipView(label: p.displayName, systemImage: "person.fill") {
+                                appliedPeopleTags.removeAll(where: { $0.id == p.id })
+                            }
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
+
+            TextField("Search contacts", text: $peopleQuery)
+                .textInputAutocapitalization(.words)
+                .autocorrectionDisabled()
+                .foregroundStyle(CaviraTheme.textPrimary)
+
+            if let contacts = appServices?.contacts {
+                switch contacts.authorizationStatus {
+                case .authorized:
+                    ForEach(contactResults) { r in
+                        Button {
+                            addContactPerson(r)
+                        } label: {
+                            HStack(spacing: CaviraTheme.Spacing.md) {
+                                Text(r.displayName)
+                                    .font(CaviraTheme.Typography.body)
+                                    .foregroundStyle(CaviraTheme.textPrimary)
+                                Spacer(minLength: 0)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                case .notDetermined:
+                    Button("Allow Contacts access") {
+                        Task { _ = await contacts.requestAuthorization() }
+                    }
+                    .foregroundStyle(CaviraTheme.accent)
+                default:
+                    Text("Contacts access is off. You can still add free-text tags below.")
+                        .font(CaviraTheme.Typography.caption)
+                        .foregroundStyle(CaviraTheme.textTertiary)
+                }
+            }
+
+            Divider()
+
+            HStack(spacing: CaviraTheme.Spacing.md) {
+                TextField("Add a person (free text)", text: $freeTextPerson)
+                    .textInputAutocapitalization(.words)
+                    .autocorrectionDisabled()
+                    .foregroundStyle(CaviraTheme.textPrimary)
+                Button("Add") { addFreeTextPerson() }
+                    .foregroundStyle(CaviraTheme.accent)
+                    .disabled(freeTextPerson.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        } header: {
+            Text("People")
+                .foregroundStyle(CaviraTheme.textSecondary)
+        }
+        .task(id: peopleQuery) {
+            await refreshContactResults()
+        }
+    }
+
+    private var coverSection: some View {
+        Section {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(coverEntries, id: \.id) { entry in
+                        coverChip(entry: entry)
+                    }
+                }
+                .padding(.vertical, 6)
+            }
+
+            Text("Cover defaults to the first slide. Tap to change.")
+                .font(CaviraTheme.Typography.caption)
+                .foregroundStyle(CaviraTheme.textTertiary)
+
+            Button("Choose a different cover from your library") {
+                showCoverPicker = true
+            }
+            .foregroundStyle(CaviraTheme.accent)
+        } header: {
+            Text("Cover")
+                .foregroundStyle(CaviraTheme.textSecondary)
+        }
+    }
+
+    private func coverChip(entry: PhotoEntry) -> some View {
+        Button {
+            coverPhotoId = entry.id
+        } label: {
+            ZStack(alignment: .topTrailing) {
+                PhotoThumbnailView(entry: entry)
+                    .frame(width: 72, height: 72)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(
+                                (coverPhotoId ?? defaultCoverID) == entry.id ? CaviraTheme.accent : .clear,
+                                lineWidth: 2
+                            )
+                    )
+
+                if (coverPhotoId ?? defaultCoverID) == entry.id {
+                    Image(systemName: "checkmark.circle.fill")
+                        .symbolRenderingMode(.palette)
+                        .foregroundStyle(CaviraTheme.accent, .black.opacity(0.35))
+                        .padding(6)
+                }
+            }
+        }
+        .buttonStyle(.plain)
     }
 
     private var trimmedTitle: String {
@@ -323,6 +357,30 @@ struct StorySaveView: View {
             ? nil
             : storyDescription.trimmingCharacters(in: .whitespacesAndNewlines)
 
+        Task { @MainActor in
+            do {
+                try await persistStory(
+                    title: title,
+                    description: description
+                )
+                isSaving = false
+                onFinish()
+            } catch {
+                isSaving = false
+                saveErrorMessage = error.localizedDescription
+                showSaveErrorAlert = true
+            }
+        }
+    }
+
+    @MainActor
+    private func persistStory(title: String, description: String?) async throws {
+        func fallbackJPEGData(for entry: PhotoEntry) async -> Data? {
+            guard let loader = appServices?.photoImageLoader else { return nil }
+            let img = await loader.loadImage(for: entry, targetSize: CGSize(width: 720, height: 720))
+            return img?.jpegData(compressionQuality: 0.72)
+        }
+
         if let existing = editingStory {
             existing.title = title
             existing.storyDescription = description
@@ -332,19 +390,25 @@ struct StorySaveView: View {
             existing.coverPhotoId = coverPhotoId ?? defaultCoverID
             existing.lastEditedDate = .now
 
-            // Replace slides (v1: no manual reorder; order is determined by the draft array).
             for slide in existing.slides {
                 modelContext.delete(slide)
             }
             existing.slides = []
 
             for (idx, draft) in draftSlides.enumerated() {
+                let preview: Data?
+                if let photo = draft.photo {
+                    preview = await fallbackJPEGData(for: photo)
+                } else {
+                    preview = nil
+                }
                 let slide = StorySlide(
                     order: idx,
                     photo: draft.photo,
                     backgroundColour: draft.backgroundColour,
                     textOverlays: draft.textOverlays,
                     stickerOverlays: draft.stickerOverlays,
+                    fallbackPreviewImageData: preview,
                     story: existing
                 )
                 modelContext.insert(slide)
@@ -363,21 +427,26 @@ struct StorySaveView: View {
             modelContext.insert(story)
 
             for (idx, draft) in draftSlides.enumerated() {
+                let preview: Data?
+                if let photo = draft.photo {
+                    preview = await fallbackJPEGData(for: photo)
+                } else {
+                    preview = nil
+                }
                 let slide = StorySlide(
                     order: idx,
                     photo: draft.photo,
                     backgroundColour: draft.backgroundColour,
                     textOverlays: draft.textOverlays,
                     stickerOverlays: draft.stickerOverlays,
+                    fallbackPreviewImageData: preview,
                     story: story
                 )
                 modelContext.insert(slide)
             }
         }
 
-        try? modelContext.save()
-        isSaving = false
-        onFinish()
+        try modelContext.save()
     }
 
     // MARK: - Cover

@@ -6,6 +6,7 @@ struct PhotoThumbnailView: View {
     let entry: PhotoEntry
 
     @State private var image: UIImage?
+    @State private var didAttemptLoad = false
 
     var body: some View {
         GeometryReader { geo in
@@ -20,9 +21,13 @@ struct PhotoThumbnailView: View {
                         .frame(width: side, height: side)
                         .clipped()
                 } else {
-                    ProgressView()
-                        .tint(CaviraTheme.accent)
-                        .scaleEffect(0.85)
+                    if didAttemptLoad {
+                        missingTile
+                    } else {
+                        ProgressView()
+                            .tint(CaviraTheme.accent)
+                            .scaleEffect(0.85)
+                    }
                 }
 
                 if entry.mediaKind == .video {
@@ -41,6 +46,26 @@ struct PhotoThumbnailView: View {
         .task(id: entry.id) {
             await loadThumbnail()
         }
+    }
+
+    private var missingTile: some View {
+        ZStack {
+            CaviraTheme.surfacePhoto
+            VStack(spacing: 6) {
+                Image(systemName: "photo.badge.exclamationmark")
+                    .font(.title3)
+                    .foregroundStyle(CaviraTheme.textTertiary)
+                Text("Missing")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(CaviraTheme.textTertiary)
+            }
+            .padding(10)
+            .background(CaviraTheme.photoScrim, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: 0, style: .continuous)
+                .stroke(CaviraTheme.border, lineWidth: 0.5)
+        )
     }
 
     private var accessibilityLabelText: String {
@@ -67,5 +92,6 @@ struct PhotoThumbnailView: View {
         guard let loader = appServices?.photoImageLoader else { return }
         let loaded = await loader.loadThumbnail(for: entry)
         image = loaded
+        didAttemptLoad = true
     }
 }

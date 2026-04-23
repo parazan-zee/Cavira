@@ -10,6 +10,8 @@ struct LibraryMonthCalendarView: View {
     let footerNote: String?
     /// Called when the user taps a day cell.
     var onSelectDay: ((Date) -> Void)? = nil
+    /// Optional Settings deep link action for denied/restricted permissions.
+    var onOpenSettings: (() -> Void)? = nil
 
     @State private var showMonthYearJump = false
     @State private var jumpSelection: Date = .now
@@ -75,9 +77,26 @@ struct LibraryMonthCalendarView: View {
             }
 
             if libraryBlocked {
-                Text("Allow Photos access in Settings to see library activity counts for each day.")
-                    .font(CaviraTheme.Typography.caption)
-                    .foregroundStyle(CaviraTheme.textTertiary)
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Allow Photos access in Settings to see library activity counts for each day.")
+                        .font(CaviraTheme.Typography.caption)
+                        .foregroundStyle(CaviraTheme.textTertiary)
+
+                    if let onOpenSettings {
+                        Button("Open Settings") {
+                            onOpenSettings()
+                        }
+                        .font(CaviraTheme.Typography.caption.weight(.semibold))
+                        .foregroundStyle(CaviraTheme.accent)
+                        .padding(.vertical, 6)
+                        .padding(.horizontal, 10)
+                        .background(CaviraTheme.surfaceElevated, in: Capsule())
+                        .overlay(
+                            Capsule().stroke(CaviraTheme.border, lineWidth: 1)
+                        )
+                        .accessibilityLabel("Open Settings")
+                    }
+                }
             } else {
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 7), spacing: 6) {
                     ForEach(weekdaySymbols, id: \.self) { sym in

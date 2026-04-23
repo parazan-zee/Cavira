@@ -10,6 +10,8 @@ struct RootView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
     @State private var selectedTab: Int = 0
+    @State private var showMissingCleanupAlert = false
+    @State private var missingCleanupCount: Int = 0
 
     var body: some View {
         ZStack {
@@ -61,11 +63,49 @@ struct RootView: View {
             DataService.migrateEventsToStoriesIfNeeded(context: modelContext)
             Task {
                 await appServices.photoLibrary.requestAuthorization()
+                runMissingHomeCleanupIfNeeded()
             }
         }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
             appServices.photoLibrary.refreshAuthorizationStatus()
+            runMissingHomeCleanupIfNeeded()
+        }
+        .alert("Some items were removed", isPresented: $showMissingCleanupAlert) {
+            Button("OK", role: .cancel) {
+                let runStamp = UserDefaults.standard.double(forKey: Self.missingCleanupLastRunKey)
+                UserDefaults.standard.set(runStamp, forKey: Self.missingCleanupLastShownKey)
+            }
+        } message: {
+            Text("We removed \(missingCleanupCount) item\(missingCleanupCount == 1 ? "" : "s") from Home because they’re no longer in your Photos library. Stories keep a small preview so your story layout remains intact.")
+        }
+    }
+
+    private static let missingCleanupLastRunKey = "cavira.missingCleanupLastRun"
+    private static let missingCleanupLastShownKey = "cavira.missingCleanupLastShown"
+
+    @MainActor
+    private func runMissingHomeCleanupIfNeeded() {
+        switch appServices.photoLibrary.authorizationStatus {
+        case .authorized, .limited:
+            break
+        default:
+            return
+        }
+
+        let removed = DataService.removeMissingFromHomeAlbumIfNeeded(
+            context: modelContext,
+            photoLibrary: appServices.photoLibrary
+        )
+        guard removed > 0 else { return }
+
+        missingCleanupCount = removed
+        let now = Date().timeIntervalSince1970
+        UserDefaults.standard.set(now, forKey: Self.missingCleanupLastRunKey)
+
+        let lastShown = UserDefaults.standard.double(forKey: Self.missingCleanupLastShownKey)
+        if lastShown != now {
+            showMissingCleanupAlert = true
         }
     }
 }

@@ -102,8 +102,8 @@ struct SearchView: View {
             if filtered.isEmpty {
                 EmptyStateView(
                     systemImage: "magnifyingglass",
-                    title: photos.isEmpty ? "Nothing to search yet" : "No results",
-                    subtitle: photos.isEmpty ? "Add photos to your Cavira album, then search by title, location, or people." : "Try a different search or clear filters."
+                    title: photos.isEmpty ? "Nothing to search yet" : "Nothing found",
+                    subtitle: photos.isEmpty ? "Add photos to your Cavira album, then search by title, location, or people." : nil
                 )
             } else {
                 ScrollView {

@@ -2,6 +2,32 @@ import Foundation
 import SwiftData
 
 enum DataService {
+    /// Marks missing Photos-backed album items as not in the Home album.
+    /// Returns the number of entries removed from Home.
+    @MainActor
+    static func removeMissingFromHomeAlbumIfNeeded(
+        context: ModelContext,
+        photoLibrary: PhotoLibraryService
+    ) -> Int {
+        let predicate = #Predicate<PhotoEntry> { entry in
+            entry.isInHomeAlbum == true && entry.localIdentifier != nil
+        }
+        let descriptor = FetchDescriptor<PhotoEntry>(predicate: predicate)
+        let rows = (try? context.fetch(descriptor)) ?? []
+
+        var removed = 0
+        for entry in rows {
+            guard let lid = entry.localIdentifier else { continue }
+            if photoLibrary.asset(for: lid) == nil {
+                entry.isInHomeAlbum = false
+                removed += 1
+            }
+        }
+        if removed > 0 {
+            try? context.save()
+        }
+        return removed
+    }
     /// Returns an existing album row for this Photos `localIdentifier`, if any.
     static func existingPhotoEntry(localIdentifier: String, context: ModelContext) -> PhotoEntry? {
         let descriptor = FetchDescriptor<PhotoEntry>()

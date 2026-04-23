@@ -1,9 +1,11 @@
 import Photos
 import SwiftUI
+import UIKit
 
 struct CalendarView: View {
     @Environment(\.appServices) private var appServices
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.openURL) private var openURL
 
     @State private var displayedMonth = Date()
     @State private var dayCounts: [Int: Int] = [:]
@@ -46,7 +48,8 @@ struct CalendarView: View {
                     footerNote: calendarFooterNote,
                     onSelectDay: { date in
                         selectedDay = date
-                    }
+                    },
+                    onOpenSettings: libraryBlocked ? openSettings : nil
                 )
 
                 RecapCarouselView(referenceDay: Date())
@@ -71,6 +74,12 @@ struct CalendarView: View {
             set: { newValue in if newValue == nil { selectedDay = nil } }
         )) { item in
             CalendarDayGridView(day: item.date)
+        }
+    }
+
+    private func openSettings() {
+        if let url = URL(string: UIApplication.openSettingsURLString) {
+            openURL(url)
         }
     }
 

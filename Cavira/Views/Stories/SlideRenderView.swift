@@ -13,6 +13,7 @@ struct SlideRenderView: View {
     @State private var stillImage: UIImage?
     @State private var videoPlayer: AVPlayer?
     @State private var loadFailed: Bool = false
+    @State private var fallbackPreviewImage: UIImage?
 
     var body: some View {
         ZStack {
@@ -81,6 +82,10 @@ struct SlideRenderView: View {
 
     @MainActor
     private func loadMedia() async {
+        if fallbackPreviewImage == nil, let data = slide.fallbackPreviewImageData {
+            fallbackPreviewImage = UIImage(data: data)
+        }
+
         guard let entry = slide.photo else {
             loadFailed = true
             return
@@ -125,17 +130,34 @@ struct SlideRenderView: View {
     }
 
     private var missingAssetView: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "photo.badge.exclamationmark")
-                .font(.largeTitle)
-                .foregroundStyle(.white.opacity(0.7))
-            Text("This media isn’t available in your Photos library.")
-                .font(.headline)
-                .foregroundStyle(.white.opacity(0.92))
-                .multilineTextAlignment(.center)
-                .padding(.horizontal)
+        ZStack {
+            if let fallbackPreviewImage {
+                Image(uiImage: fallbackPreviewImage)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipped()
+            } else {
+                Color.black
+            }
+
+            VStack(spacing: 10) {
+                Image(systemName: "photo.badge.exclamationmark")
+                    .font(.title)
+                    .foregroundStyle(.white.opacity(0.82))
+                Text("No longer in your Photos library")
+                    .font(.headline)
+                    .foregroundStyle(.white.opacity(0.92))
+            }
+            .padding(.vertical, 14)
+            .padding(.horizontal, 16)
+            .background(.black.opacity(0.55), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(.white.opacity(0.12), lineWidth: 1)
+            )
+            .padding(24)
         }
-        .padding(24)
     }
 }
 

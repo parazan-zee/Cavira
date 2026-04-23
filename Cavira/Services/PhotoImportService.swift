@@ -23,10 +23,29 @@ enum PhotoImportService {
         context: ModelContext,
         photoLibrary: PhotoLibraryService
     ) throws -> [PhotoEntry] {
+        try importLocalIdentifiers(
+            localIdentifiers,
+            context: context,
+            photoLibrary: photoLibrary,
+            onProgress: nil
+        )
+    }
+
+    /// Returns new entries created for these local identifiers (existing rows are skipped).
+    /// Reports progress as `(current, total)` on the main actor.
+    @MainActor
+    static func importLocalIdentifiers(
+        _ localIdentifiers: [String],
+        context: ModelContext,
+        photoLibrary: PhotoLibraryService,
+        onProgress: ((Int, Int) -> Void)?
+    ) throws -> [PhotoEntry] {
         var touched: [PhotoEntry] = []
         touched.reserveCapacity(localIdentifiers.count)
 
-        for lid in localIdentifiers {
+        let total = localIdentifiers.count
+        for (idx, lid) in localIdentifiers.enumerated() {
+            onProgress?(idx, total)
             if DataService.existingPhotoEntry(localIdentifier: lid, context: context) != nil {
                 continue
             }
@@ -46,6 +65,7 @@ enum PhotoImportService {
             context.insert(entry)
             touched.append(entry)
         }
+        onProgress?(total, total)
 
         if !touched.isEmpty {
             try context.save()

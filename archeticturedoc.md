@@ -65,7 +65,7 @@ Keep this table in sync with the Cavira codebase as phases finish. Each phase se
 | 9 — Stories | ✅ Complete |
 | 10 — Settings & storage | ✅ Complete |
 | 11 — Pinning (no ProfileView) | ✅ Complete |
-| 12 — Polish & QA | ⏳ Not started |
+| 12 — Polish & QA | 🚧 In progress |
 
 ---
 
@@ -1286,13 +1286,138 @@ In v1, `AppSettings.defaultStorageMode` should remain `.reference` (or the UI om
 ---
 
 # PHASE 12 — Polish, Edge Cases & Final QA
-**Build tracker:** ⏳ Not started
+**Build tracker:** 🚧 In progress (see 12.x tracker below)
 
 ### Goal: App is stable, handles edge cases, and feels complete for v1. **Optional** product/engineering items that were explicitly deferred from v1: **appearance** (light / system) and **dark-mode tint** fine-tuning for Ranger, plus an unlikely migration from **UIKit global appearances** to **SwiftUI-only** tab/nav chrome — all **only** if you choose to schedule them here.
 
 ---
 
-### Cursor Prompt — Phase 12
+### Phase 12 breakdown (work one at a time)
+
+Treat each mini-phase below as a **standalone PR-sized chunk**. When you say “start 12.x”, I’ll ask the questions in that mini-phase first, then implement it.
+
+**Phase 12.x tracker (repo):**
+- **12.1 — Missing asset handling**: ✅ Complete
+- **12.2 — Empty states + copy pass**: ✅ Complete
+- **12.3 — Import flow UX polish**: ✅ Complete
+- **12.4 — Loading states tuning**: ⏳ Not started
+- **12.5 — Data integrity edge cases**: ⏳ Not started
+- **12.6 — Animations + transitions**: ⏳ Not started
+- **12.7 — Performance + memory**: ⏳ Not started
+- **12.8 — App icon + walkthrough QA**: ⏳ Not started
+- **12.9 — Appearance + Ranger tuning (Optional)**: ⏳ Not started
+
+#### PHASE 12.1 — Missing asset handling (Photos-backed references)
+**Goal:** Never show broken UI or crashes when a `PhotoEntry.localIdentifier` no longer exists in Apple Photos.
+
+**Scope:**
+- Thumbnail placeholders (`PhotoThumbnailView`) for missing assets
+- Detail banner / empty state (`PhotoDetailView`) with “Remove from Cavira” action
+- Stories: slide renderer placeholder for missing slide media (if not already perfect)
+
+**Questions to confirm:**
+- Should **missing assets auto-remove** from Home/Stories, or **only on user action**?
+- In `PhotoDetailView`, do you want **“Open Photos”** as a second action?
+
+**Done checklist:**
+- [ ] Missing thumbnails show an exclamation placeholder
+- [ ] Detail view shows a clear banner and offers removal
+- [ ] Stories viewer/editor never crash on missing slide media
+
+#### PHASE 12.2 — Empty states + copy pass
+**Goal:** Every list/grid/screen has a consistent empty state with Ranger styling and correct copy.
+
+**Questions to confirm:**
+- Any copy tone preference (minimal vs more descriptive)?
+- Should Search empty state include a “Clear filters” affordance?
+
+**Done checklist:**
+- [ ] Home (Grid/Timeline/Videos) empty states correct
+- [ ] Calendar empty / permission messaging consistent
+- [ ] Stories empty state consistent
+- [ ] Search empty results state consistent
+
+**Locked decisions (this build):**
+- **Guiding tone** for empty screens (tell the user what to do next).
+- **Search empty results**: text-only **“Nothing found”** (no “clear filters” CTA).
+- **Calendar permission blocked**: show an **Open Settings** button.
+
+#### PHASE 12.3 — Import flow UX polish (Picker → `ImportOptionsSheet`)
+**Goal:** Import feels intentional and polished: stable sheets, clear hierarchy, clear duplicate feedback, and a good experience for large selections.
+
+**Questions to confirm:**
+- For duplicates: prefer **toast**, **alert**, or **inline message**?
+- For large selections: do you want a **progress indicator** or just a loading spinner?
+
+**Done checklist:**
+- [ ] Sheet transitions feel smooth and predictable
+- [ ] Duplicate/“already in album” messaging is clear
+- [ ] Large selections don’t feel frozen
+
+#### PHASE 12.4 — Loading states tuning (thumbnails, story slides)
+**Goal:** No black frames / janky loading; spinners and placeholders feel intentional.
+
+**Questions to confirm:**
+- Should Stories **preload next slide** (lightweight) or keep simple?
+
+**Done checklist:**
+- [ ] Thumb loading doesn’t block scrolling
+- [ ] Story slide loading never shows a harsh black flash
+
+#### PHASE 12.5 — Data integrity edge cases
+**Goal:** No crashes or corrupt UX for weird states (zero slides, deleted photo references, etc.).
+
+**Questions to confirm:**
+- If a story has 0 slides, should it be **auto-deleted**, or shown with a **“No slides”** state?
+
+**Done checklist:**
+- [ ] Story with zero slides handled
+- [ ] Deleting PhotoEntry referenced by slides handled gracefully
+
+#### PHASE 12.6 — Animations + transitions pass
+**Goal:** Small motion polish only (nothing that risks correctness).
+
+**Questions to confirm:**
+- Any specific animations you want (Home mode switch, sheet transitions)?
+
+**Done checklist:**
+- [ ] Home mode switch animates cleanly
+- [ ] Sheets have drag handles and look consistent
+
+#### PHASE 12.7 — Performance + memory pass
+**Goal:** Keep scrolling smooth, keep memory bounded (especially image caching).
+
+**Questions to confirm:**
+- What library sizes are you targeting for “feels fast” (500 / 2k / 10k items)?
+
+**Done checklist:**
+- [ ] Thumbnail requests are sized appropriately
+- [ ] Cache limits are reasonable and documented in code (briefly)
+
+#### PHASE 12.8 — App icon + final walkthrough QA
+**Goal:** App icon is set, and the core flows are walked end-to-end with no sharp edges.
+
+**Questions to confirm:**
+- Do you want a **temporary icon** (simple) or should we wait for a real design asset?
+
+**Done checklist:**
+- [ ] App icon appears in simulator/device
+- [ ] End-to-end walkthrough passes (import → tag → story → search → settings)
+
+#### PHASE 12.9 (Optional) — Appearance + Ranger tuning
+**Goal:** Only if you explicitly want it: wire `AppSettings.appearanceMode` and/or adjust Ranger tokens.
+
+**Questions to confirm:**
+- Are we keeping **forced dark** for v1?
+- If enabling appearance: do you want **System / Light / Dark** all supported?
+
+**Done checklist:**
+- [ ] Appearance wiring is consistent across all screens (if enabled)
+- [ ] Ranger contrast looks correct in all supported modes
+
+---
+
+### Cursor Prompt — Phase 12 (legacy)
 
 ```
 Final polish pass. Address edge cases, add missing feedback, and ensure a consistent experience.
