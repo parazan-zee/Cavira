@@ -167,6 +167,8 @@ struct PhotoDetailView: View {
         }
         .sheet(isPresented: $showEditTags) {
             EditTagsSheet(entry: entry)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
         }
         .confirmationDialog(
             "Remove from Cavira?",
@@ -365,13 +367,12 @@ struct PhotoDetailView: View {
 
     private func removeFromAlbum() {
         guard let services = appServices else { return }
-        do {
-            try DataService.deletePhotoEntry(entry, context: modelContext, photoStorage: services.photoStorage)
-            services.photoImageLoader.clearCache()
-            dismiss()
-        } catch {
-            // Silent fail acceptable for v1; Phase 12 can surface errors.
-        }
+        // Important: removing from the Home album must not delete the SwiftData row,
+        // because Stories can reference the same `PhotoEntry`.
+        entry.isInHomeAlbum = false
+        try? modelContext.save()
+        services.photoImageLoader.clearCache()
+        dismiss()
     }
 }
 

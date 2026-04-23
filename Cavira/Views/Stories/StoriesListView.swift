@@ -43,6 +43,7 @@ struct StoriesListView: View {
                                         showDeleteConfirm = true
                                     }
                                 )
+                                .transition(.asymmetric(insertion: .opacity, removal: .opacity.combined(with: .move(edge: .top))))
                                 .padding(.horizontal, CaviraTheme.Spacing.lg)
                                 .contextMenu { storyContextMenu(story) }
                             }
@@ -64,6 +65,7 @@ struct StoriesListView: View {
                                         showDeleteConfirm = true
                                     }
                                 )
+                                .transition(.asymmetric(insertion: .opacity, removal: .opacity.combined(with: .move(edge: .top))))
                                 .padding(.horizontal, CaviraTheme.Spacing.lg)
                                 .contextMenu { storyContextMenu(story) }
                             }
@@ -105,9 +107,13 @@ struct StoriesListView: View {
         }
         .sheet(isPresented: $showingBuilder) {
             StoryBuilderView()
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
         }
         .sheet(item: $storyToEdit) { story in
             StoryBuilderView(editingStory: story)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
         }
         .alert("Delete story?", isPresented: $showDeleteConfirm, presenting: storyToDelete) { story in
             Button("Delete", role: .destructive) { deleteStory(story) }
@@ -152,12 +158,16 @@ struct StoriesListView: View {
     }
 
     private func togglePin(_ story: Story) {
-        story.isPinned.toggle()
+        withAnimation(.spring(response: 0.34, dampingFraction: 0.92)) {
+            story.isPinned.toggle()
+        }
         try? context.save()
     }
 
     private func deleteStory(_ story: Story) {
-        context.delete(story)
+        withAnimation(.spring(response: 0.34, dampingFraction: 0.92)) {
+            context.delete(story)
+        }
         try? context.save()
     }
 }

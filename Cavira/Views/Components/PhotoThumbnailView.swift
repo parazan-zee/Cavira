@@ -40,12 +40,12 @@ struct PhotoThumbnailView: View {
                 }
             }
             .frame(width: side, height: side)
+            .task(id: "\(entry.id.uuidString)|\(Int(side))") {
+                await loadThumbnail(targetSidePoints: side)
+            }
         }
         .aspectRatio(1, contentMode: .fit)
         .accessibilityLabel(accessibilityLabelText)
-        .task(id: entry.id) {
-            await loadThumbnail()
-        }
     }
 
     private var missingTile: some View {
@@ -88,9 +88,14 @@ struct PhotoThumbnailView: View {
     }
 
     @MainActor
-    private func loadThumbnail() async {
+    private func loadThumbnail(targetSidePoints: CGFloat) async {
         guard let loader = appServices?.photoImageLoader else { return }
-        let loaded = await loader.loadThumbnail(for: entry)
+        let scale = UIScreen.main.scale
+        // Request slightly larger than the cell to reduce re-fetching during fast scroll.
+        let px = max(Int(targetSidePoints * scale * 1.15), 1)
+        let target = CGSize(width: min(px, 600), height: min(px, 600))
+        let loaded = await loader.loadImage(for: entry, targetSize: target)
+        guard !Task.isCancelled else { return }
         image = loaded
         didAttemptLoad = true
     }

@@ -7,6 +7,8 @@ final class AppSettings {
     var defaultStorageMode: StorageMode
     var defaultHomeView: HomeViewMode
     var appearanceMode: AppearanceMode
+    /// Optional for SwiftData schema evolution; defaults to `.ranger` when nil.
+    var themePalette: ThemePalette?
     /// One-time migration: convert legacy items into Stories.
     var didMigrateEventsToStories: Bool
 
@@ -15,6 +17,7 @@ final class AppSettings {
         defaultStorageMode = .reference
         defaultHomeView = .grid
         appearanceMode = .system
+        themePalette = .ranger
         didMigrateEventsToStories = false
     }
 }

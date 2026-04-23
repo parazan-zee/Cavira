@@ -254,6 +254,9 @@ struct ImportOptionsSheet: View {
                 Text(importErrorMessage ?? "")
             }
         }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+        .interactiveDismissDisabled(isImporting)
     }
 
     private var importProgressOverlay: some View {
@@ -291,13 +294,23 @@ struct ImportOptionsSheet: View {
             return
         }
 
+        // Capture duplicate state *before* import runs. Newly inserted entries default to `isInHomeAlbum = true`,
+        // so counting duplicates after import can misclassify fresh adds as "already in your album".
+        var wasAlreadyInHome: Set<String> = []
+        for lid in localIdentifiers {
+            if let existing = DataService.existingPhotoEntry(localIdentifier: lid, context: modelContext),
+               existing.isInHomeAlbum {
+                wasAlreadyInHome.insert(lid)
+            }
+        }
+
         isImporting = true
         importProgressCurrent = 0
         importProgressTotal = localIdentifiers.count
         Task { @MainActor in
             defer { isImporting = false }
             do {
-                let touched = try PhotoImportService.importLocalIdentifiers(
+                _ = try PhotoImportService.importLocalIdentifiers(
                     localIdentifiers,
                     context: modelContext,
                     photoLibrary: services.photoLibrary,
@@ -306,19 +319,15 @@ struct ImportOptionsSheet: View {
                         importProgressTotal = total
                     }
                 )
-                // Importing via this sheet always adds items to the Home album, even if the entries
-                // already exist in SwiftData (e.g. created from Stories first).
-                var affectedById: [UUID: PhotoEntry] = [:]
-                for entry in touched {
-                    affectedById[entry.id] = entry
-                }
+
+                // Resolve the entries that actually exist after import (handles partial failures / missing assets).
+                var byId: [UUID: PhotoEntry] = [:]
                 for lid in localIdentifiers {
-                    if let existing = DataService.existingPhotoEntry(localIdentifier: lid, context: modelContext) {
-                        affectedById[existing.id] = existing
+                    if let entry = DataService.existingPhotoEntry(localIdentifier: lid, context: modelContext) {
+                        byId[entry.id] = entry
                     }
                 }
-
-                let affected = Array(affectedById.values)
+                let affected = Array(byId.values)
                 if affected.isEmpty, !localIdentifiers.isEmpty {
                     importErrorMessage = "Nothing new was added. Selected items may already be in your album."
                     dismissAfterAlert = false
@@ -326,9 +335,9 @@ struct ImportOptionsSheet: View {
                     return
                 }
 
-                // Determine what will be newly added to Home vs already present in Home.
-                let alreadyInHomeCount = affected.filter { $0.isInHomeAlbum }.count
-                let willAddToHomeCount = affected.count - alreadyInHomeCount
+                // Determine what was already in Home vs newly added to Home (based on pre-import snapshot).
+                let alreadyInHomeCount = affected.compactMap(\.localIdentifier).filter { wasAlreadyInHome.contains($0) }.count
+                let willAddToHomeCount = max(affected.count - alreadyInHomeCount, 0)
 
                 if willAddToHomeCount == 0, !affected.isEmpty {
                     importErrorMessage = "Already in your album. Pick something else to add."

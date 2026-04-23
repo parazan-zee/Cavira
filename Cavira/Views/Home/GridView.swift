@@ -6,6 +6,7 @@ struct GridView: View {
     var emptyTitle: String = "Import your media to start"
     var emptySubtitle: String? = "Your album stays in Apple Photos; Cavira is where you curate what appears here."
     let onRequestRemove: (PhotoEntry) -> Void
+    var onEdit: ((PhotoEntry) -> Void)? = nil
 
     private let gridSpacing: CGFloat = 4
 
@@ -33,6 +34,11 @@ struct GridView: View {
                             }
                             .buttonStyle(.plain)
                             .contextMenu {
+                                if let onEdit {
+                                    Button("Edit", systemImage: "pencil") {
+                                        onEdit(entry)
+                                    }
+                                }
                                 Button("Remove from album", systemImage: "rectangle.badge.minus", role: .destructive) {
                                     onRequestRemove(entry)
                                 }

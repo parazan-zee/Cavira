@@ -47,6 +47,7 @@
 		0A0D5B91A2B8A8A2D00A0A001 /* SearchTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A0D5B90A2B8A8A2D00A0A001 /* SearchTab.swift */; };
 		0A0D5B91B2B8A8A2D00A0A001 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A0D5B90B2B8A8A2D00A0A001 /* SettingsView.swift */; };
 		0A0D5B91C2B8A8A2D00A0A001 /* SettingsTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A0D5B90C2B8A8A2D00A0A001 /* SettingsTab.swift */; };
+		0A0D5B91D2B8A8A2D00A0A002 /* ThemePickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A0D5B90D2B8A8A2D00A0A002 /* ThemePickerSheet.swift */; };
 		F10E10A12E9B3C4D5E6F7012 /* StorageSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10E10A02E9B3C4D5E6F7012 /* StorageSettingsView.swift */; };
 		E01D5B0012B8A8A2D00A0A001 /* PhotoPickerRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = E01D5B0112B8A8A2D00A0A001 /* PhotoPickerRepresentable.swift */; };
 		E01D5B0022B8A8A2D00A0A001 /* ImportOptionsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E01D5B0122B8A8A2D00A0A001 /* ImportOptionsSheet.swift */; };
@@ -60,6 +61,7 @@
 		F100PH0252B8A8A2D00A0A001 /* PhotoDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100PH0052B8A8A2D00A0A001 /* PhotoDetailView.swift */; };
 		F300TG0222B8A8A2D00A0A001 /* EditTagsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = F300TG0212B8A8A2D00A0A001 /* EditTagsSheet.swift */; };
 		F100TH0122B8A8A2D00A0A001 /* CaviraTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100TH0112B8A8A2D00A0A001 /* CaviraTheme.swift */; };
+		F100TH0312B8A8A2D00A0A002 /* ThemeStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100TH0212B8A8A2D00A0A002 /* ThemeStore.swift */; };
 		F200EV0122B8A8A2D00A0A001 /* RecapCarouselView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F200EV0112B8A8A2D00A0A001 /* RecapCarouselView.swift */; };
 		F200EV0322B8A8A2D00A0A001 /* LibraryMonthCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F200EV0312B8A8A2D00A0A001 /* LibraryMonthCalendarView.swift */; };
 		F200FAB0222B8A8A2D00A0A001 /* AlbumImportToolbarButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = F200FAB0212B8A8A2D00A0A001 /* AlbumImportToolbarButton.swift */; };
@@ -109,6 +111,7 @@
 		0A0D5B90A2B8A8A2D00A0A001 /* SearchTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchTab.swift; sourceTree = "<group>"; };
 		0A0D5B90B2B8A8A2D00A0A001 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		0A0D5B90C2B8A8A2D00A0A001 /* SettingsTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsTab.swift; sourceTree = "<group>"; };
+		0A0D5B90D2B8A8A2D00A0A002 /* ThemePickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemePickerSheet.swift; sourceTree = "<group>"; };
 		F10E10A02E9B3C4D5E6F7012 /* StorageSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageSettingsView.swift; sourceTree = "<group>"; };
 		E01D5B0112B8A8A2D00A0A001 /* PhotoPickerRepresentable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoPickerRepresentable.swift; sourceTree = "<group>"; };
 		E01D5B0122B8A8A2D00A0A001 /* ImportOptionsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportOptionsSheet.swift; sourceTree = "<group>"; };
@@ -122,6 +125,7 @@
 		F300TG0112B8A8A2D00A0A001 /* TagChipView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagChipView.swift; sourceTree = "<group>"; };
 		F300TG0212B8A8A2D00A0A001 /* EditTagsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditTagsSheet.swift; sourceTree = "<group>"; };
 		F100TH0112B8A8A2D00A0A001 /* CaviraTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaviraTheme.swift; sourceTree = "<group>"; };
+		F100TH0212B8A8A2D00A0A002 /* ThemeStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeStore.swift; sourceTree = "<group>"; };
 		F200EV0112B8A8A2D00A0A001 /* RecapCarouselView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecapCarouselView.swift; sourceTree = "<group>"; };
 		F200EV0312B8A8A2D00A0A001 /* LibraryMonthCalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryMonthCalendarView.swift; sourceTree = "<group>"; };
 		F200FAB0212B8A8A2D00A0A001 /* AlbumImportToolbarButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlbumImportToolbarButton.swift; sourceTree = "<group>"; };
@@ -175,6 +179,7 @@
 			isa = PBXGroup;
 			children = (
 				F100TH0112B8A8A2D00A0A001 /* CaviraTheme.swift */,
+				F100TH0212B8A8A2D00A0A002 /* ThemeStore.swift */,
 			);
 			path = Theme;
 			sourceTree = "<group>";
@@ -302,6 +307,7 @@
 			children = (
 				0A0D5B90B2B8A8A2D00A0A001 /* SettingsView.swift */,
 				0A0D5B90C2B8A8A2D00A0A001 /* SettingsTab.swift */,
+				0A0D5B90D2B8A8A2D00A0A002 /* ThemePickerSheet.swift */,
 				F10E10A02E9B3C4D5E6F7012 /* StorageSettingsView.swift */,
 			);
 			path = Settings;
@@ -386,6 +392,7 @@
 				E01D5B0032B8A8A2D00A0A001 /* PhotoImportService.swift in Sources */,
 				0A0D5B3A2B8A8A2D00A0A001 /* CaviraApp.swift in Sources */,
 				F100TH0122B8A8A2D00A0A001 /* CaviraTheme.swift in Sources */,
+				F100TH0312B8A8A2D00A0A002 /* ThemeStore.swift in Sources */,
 				0A0D5B9112B8A8A2D00A0A001 /* RootView.swift in Sources */,
 				0A0D5B9122B8A8A2D00A0A001 /* CaviraPreviewSupport.swift in Sources */,
 				0A0D5B9132B8A8A2D00A0A001 /* HomeScreen.swift in Sources */,
@@ -420,6 +427,7 @@
 				0A0D5B91A2B8A8A2D00A0A001 /* SearchTab.swift in Sources */,
 				0A0D5B91B2B8A8A2D00A0A001 /* SettingsView.swift in Sources */,
 				0A0D5B91C2B8A8A2D00A0A001 /* SettingsTab.swift in Sources */,
+				0A0D5B91D2B8A8A2D00A0A002 /* ThemePickerSheet.swift in Sources */,
 				F10E10A12E9B3C4D5E6F7012 /* StorageSettingsView.swift in Sources */,
 				0A0D5B5B2B8A8A2D00A0A001 /* Enums.swift in Sources */,
 				0A0D5B5C2B8A8A2D00A0A001 /* TextOverlay.swift in Sources */,

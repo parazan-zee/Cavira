@@ -112,7 +112,14 @@ struct SlideRenderView: View {
                 loadFailed = true
             }
         case .image:
-            stillImage = await services.photoImageLoader.loadFullLibraryImage(for: entry)
+            // Prefer scaled request sized to the screen; avoids decoding full-res images into memory.
+            let screen = UIScreen.main.bounds.size
+            let scale = UIScreen.main.scale
+            let pxW = max(Int(screen.width * scale), 1)
+            let pxH = max(Int(screen.height * scale), 1)
+            let target = CGSize(width: min(pxW, 2200), height: min(pxH, 2200))
+            stillImage = await services.photoImageLoader.loadImage(for: entry, targetSize: target)
+            guard !Task.isCancelled else { return }
             if stillImage == nil {
                 loadFailed = true
             }

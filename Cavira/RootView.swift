@@ -12,6 +12,8 @@ struct RootView: View {
     @State private var selectedTab: Int = 0
     @State private var showMissingCleanupAlert = false
     @State private var missingCleanupCount: Int = 0
+    @State private var settings: AppSettings?
+    @State private var themeStore = ThemeStore.shared
 
     var body: some View {
         ZStack {
@@ -54,17 +56,25 @@ struct RootView: View {
                     }
                     .tag(4)
             }
+            // Force UIKit chrome to refresh (tab bar + nav bar appearance proxies) when the palette changes.
+            // This avoids cases where existing UITabBar instances keep the previous colors.
+            .id(themeStore.palette)
         }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(preferredScheme)
         .environment(\.appServices, appServices)
-        .tint(CaviraTheme.accent)
+        .tint(themeStore.palette.swatchColor)
         .onAppear {
-            _ = DataService.getOrCreateSettings(context: modelContext)
+            let s = DataService.getOrCreateSettings(context: modelContext)
+            settings = s
+            ThemeStore.shared.apply(s.themePalette ?? .ranger)
             DataService.migrateEventsToStoriesIfNeeded(context: modelContext)
             Task {
                 await appServices.photoLibrary.requestAuthorization()
                 runMissingHomeCleanupIfNeeded()
             }
+        }
+        .onChange(of: settings?.themePalette) { _, newValue in
+            ThemeStore.shared.apply(newValue ?? .ranger)
         }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
@@ -78,6 +88,19 @@ struct RootView: View {
             }
         } message: {
             Text("We removed \(missingCleanupCount) item\(missingCleanupCount == 1 ? "" : "s") from Home because they’re no longer in your Photos library. Stories keep a small preview so your story layout remains intact.")
+        }
+    }
+
+    private var preferredScheme: ColorScheme? {
+        let s = settings
+        let palette = s?.themePalette ?? .ranger
+        switch s?.appearanceMode ?? .system {
+        case .system:
+            return palette.defaultColorScheme
+        case .light:
+            return .light
+        case .dark:
+            return .dark
         }
     }
 

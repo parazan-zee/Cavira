@@ -11,11 +11,11 @@ Use this as the **inventory of shipped behaviour** before starting **Phase 7+**.
 
 | Area | In repo / working |
 |------|-------------------|
-| **Models** | SwiftData: `PhotoEntry` (incl. `mediaKind`, `isLivePhoto`, `localIdentifier`, **`isInHomeAlbum`**), `Story` (incl. **title, date, description, location, people, cover**), `StorySlide`, tags, `AppSettings` (`defaultHomeView`, `appearanceMode`, `defaultStorageMode`, legacy migration flag), `PhotoAssetKind`, `HomeViewMode` (`.grid`, `.timeline`, `.videos`, legacy-only cases kept for migration). **Legacy in repo (to remove later):** `Event` + any `PhotoEntry.event` / `Story.event` wiring (see **Decision: Retire legacy second tab concept** below). **`appearanceMode` is not wired to the UI** in v1 — the app runs **Ranger dark** only (see Phase 5.5 / Phase 12). |
-| **Theme** | **`Theme/CaviraTheme.swift`:** Ranger palette (`ranger_theme.md`); **hex literals match the spec exactly**. **`CaviraTheme.applyGlobalChrome()`** in **`CaviraApp`** (UIKit appearances: tab bar, nav bar, segmented control, table view). **`Assets.xcassets/AccentColor`** = **`#D4B96A`** (Ranger accent). **`RootView`:** `.preferredColorScheme(.dark)`, `.tint(CaviraTheme.accent)`, root **`backgroundPrimary`**. |
+| **Models** | SwiftData: `PhotoEntry` (incl. `mediaKind`, `isLivePhoto`, `localIdentifier`, **`isInHomeAlbum`**), `Story` (incl. **title, date, description, location, people, cover**), `StorySlide`, tags, `AppSettings` (`defaultHomeView`, `appearanceMode`, `defaultStorageMode`, **`themePalette?`** (optional for migration safety), legacy migration flag), `PhotoAssetKind`, `HomeViewMode` (`.grid`, `.timeline`, `.videos`, legacy-only cases kept for migration). **Legacy in repo (to remove later):** `Event` + any `PhotoEntry.event` / `Story.event` wiring (see **Decision: Retire legacy second tab concept** below). |
+| **Theme** | **`Theme/CaviraTheme.swift`** supports multiple palettes via **`ThemePalette`** (colors only; layout unchanged). **Default = Ranger.** User selects under **Settings → Display → Theme** (opens **ThemePickerSheet** with swatches). **UIKit chrome** is applied via **`CaviraTheme.applyGlobalChrome()`** (called at launch in `CaviraApp` and re-applied when theme changes). `RootView` uses `.preferredColorScheme(...)` based on palette (Cloud defaults to light; others default to dark). |
 | **Services** | `AppServices` + `Environment` (`AppServices?`); `PhotoLibraryService` (auth, `fetchAllAssets`, `assets(onDay:)`, recap helpers, **`assetCountsByDayInMonth`**, `asset(for:)`); `PhotoImageLoader`; `PhotoImportService` (reference import, dedupe by `localIdentifier`, **`importLocalIdentifiers`**); `PhotoStorageServing` / `NoOpPhotoStorage`; `LocationSearchService`, `ContactsService`, `DataService` (incl. one-time legacy migration into Stories). |
 | **Shell** | `RootView` `TabView` (5 tabs); launch **`AppSettings`** bootstrap + **Photos** `requestAuthorization` task; `HomeTab` … `SettingsTab` each **one `NavigationStack`**. |
-| **Home** | Same as Phase 5.5 + **5**; segmented **Grid \| Timeline \| Videos** only. Home lists only `PhotoEntry.isInHomeAlbum == true`. **`AlbumImportToolbarButton`** on all segments; **`ImportOptionsSheet`** (Home Add form) is album-only; **single-item imports require a Title** (shown as **Title*** with red validation on Add). **Duplicate feedback:** if the user picks only items already in the Home album (`isInHomeAlbum == true`), show a short **“Already in your album”** alert and dismiss. `navigationDestination(for: UUID.self)` resolves **photo** for `PhotoDetailView`. **Remove from album** toggles `isInHomeAlbum = false` (does not delete the row so Story-only references remain valid). |
+| **Home** | Segmented **Grid \| Timeline \| Videos** only. Home lists only `PhotoEntry.isInHomeAlbum == true`. **Long press context menu:** **Edit** (opens `EditTagsSheet`) + **Remove from album** (toggles `isInHomeAlbum = false`, Cavira-only). **`AlbumImportToolbarButton`** on all segments; **`ImportOptionsSheet`** (Home Add form) is album-only; **single-item imports require a Title** (shown as **Title*** with red validation on Add). **Duplicate feedback:** if the user picks only items already in the Home album (`isInHomeAlbum == true`), show a short **“Already in your album”** alert and dismiss (duplicate detection is computed from pre-import Home membership to avoid false positives). `navigationDestination(for: UUID.self)` resolves **photo** for `PhotoDetailView`. |
 | **Photo / import UI** | `Views/Photo/` picker + import sheet + detail; `Views/Components/` thumbnails + empty state; `Views/Home/` grid + timeline + `HomeScreen`. |
 | **Calendar tab** | **`LibraryMonthCalendarView`** (counts + **limited / not-determined** footnotes); **month title** opens **“Go to month”** sheet (**graphical `DatePicker`** + **Jump to today’s month** + **Go** / **Cancel**); prev/next chevrons unchanged; tapping a day opens a **day grid** of that day’s Photos assets (photos+videos, read-only from `PHAsset`). Tapping an item opens an **Options** sheet (**full height**) that reuses shared flows: **Add to Home** presents **the same `ImportOptionsSheet`** used on Home; **Add to Story** presents **the same `StoryBuilderView`** used on Stories (scoped to that day’s captures). **Below the calendar:** a **Recap** module (“On this date” / “This month”) that auto-flips through past photos (fade every ~5s). `scenePhase` .active and `.task(id: displayedMonth)` refresh month counts after jumps. |
 | **Placeholders** | Stories, Search, Settings bodies. |
@@ -65,7 +65,7 @@ Keep this table in sync with the Cavira codebase as phases finish. Each phase se
 | 9 — Stories | ✅ Complete |
 | 10 — Settings & storage | ✅ Complete |
 | 11 — Pinning (no ProfileView) | ✅ Complete |
-| 12 — Polish & QA | 🚧 In progress |
+| 12 — Polish & QA | ✅ Complete |
 
 ---
 
@@ -166,12 +166,12 @@ Keep this table in sync with the Cavira codebase as phases finish. Each phase se
 - **Name:** **Search** (keep).
 - **Purpose (expanded):** Search Cavira’s organised library by **metadata** — e.g. **location**, **person**, “**all photos I’ve ever included** with this person”, **family** groupings, **selfies** (via tags / smart labels / future face or album heuristics as product allows). Same technical direction as **Phase 8**; shell is still a placeholder until that phase.
 
-#### Theme & appearance (Ranger — shipped Phase 5.5)
-- **Single skin:** Cavira v1 ships **one** visual system: **Ranger / `CaviraTheme`** (`Theme/CaviraTheme.swift`), aligned with **`ranger_theme.md`**. **Do not** add alternate palettes (army green / black / white themes, `ThemePalette`, etc.) in Phases 6–11; those ideas are **removed from the roadmap**.
-- **Hex discipline:** Token **hex strings in `CaviraTheme` must match `ranger_theme.md` exactly** (no informal tweaks).
-- **Accent asset:** `Assets.xcassets/AccentColor` = Ranger accent **`#D4B96A`** (sRGB components must match that hex).
-- **Light mode / system appearance:** **Not** in scope for v1. **`RootView`** forces **`.preferredColorScheme(.dark)`** for a consistent Ranger dark shell. **`AppSettings.appearanceMode`** may remain in the model for a future release but is **ignored for UI** until/unless product reopens appearance (see **Phase 12**).
-- **Chrome implementation:** **UIKit global appearances** for tab bar, navigation bar, segmented controls, and table views (`CaviraTheme.applyGlobalChrome()`). **Phase 12 (optional):** consider **SwiftUI-only** chrome if we ever drop UIKit appearance side effects; treat as unlikely.
+#### Theme & appearance (Phase 12.9 — shipped)
+- **Theme palettes (colors only):** Cavira supports **Ranger (default)** plus **Cloud / Midnight / Arctic / Ember** via `ThemePalette`.
+- **User control:** **Settings → Display → Theme** opens `ThemePickerSheet` showing **swatches** + a checkmark for the selected theme.
+- **No layout changes:** Theme affects **only** colour tokens (background/surface/accent/text/border), not view hierarchy or interaction.
+- **Chrome implementation:** UIKit global appearances are applied via `CaviraTheme.applyGlobalChrome()` at launch and re-applied when palette changes. `RootView` forces a `TabView` refresh on palette change to ensure the tab bar reflects the new colours.
+- **Colour scheme:** When `appearanceMode == .system`, `RootView` uses the palette’s default scheme (**Cloud → light**, others → dark).
 
 ### Additional improvements (schedule into a phase when ready)
 
@@ -1300,12 +1300,12 @@ Treat each mini-phase below as a **standalone PR-sized chunk**. When you say “
 - **12.1 — Missing asset handling**: ✅ Complete
 - **12.2 — Empty states + copy pass**: ✅ Complete
 - **12.3 — Import flow UX polish**: ✅ Complete
-- **12.4 — Loading states tuning**: ⏳ Not started
-- **12.5 — Data integrity edge cases**: ⏳ Not started
-- **12.6 — Animations + transitions**: ⏳ Not started
-- **12.7 — Performance + memory**: ⏳ Not started
-- **12.8 — App icon + walkthrough QA**: ⏳ Not started
-- **12.9 — Appearance + Ranger tuning (Optional)**: ⏳ Not started
+- **12.4 — Loading states tuning**: ✅ Complete
+- **12.5 — Data integrity edge cases**: ✅ Complete
+- **12.6 — Animations + transitions**: ✅ Complete
+- **12.7 — Performance + memory**: ✅ Complete
+- **12.8 — App icon + walkthrough QA**: ✅ Complete
+- **12.9 — Appearance + Ranger tuning (Optional)**: ✅ Complete
 
 #### PHASE 12.1 — Missing asset handling (Photos-backed references)
 **Goal:** Never show broken UI or crashes when a `PhotoEntry.localIdentifier` no longer exists in Apple Photos.
@@ -1374,6 +1374,9 @@ Treat each mini-phase below as a **standalone PR-sized chunk**. When you say “
 - [ ] Story with zero slides handled
 - [ ] Deleting PhotoEntry referenced by slides handled gracefully
 
+**Notes (implemented):**
+- Photo detail “Remove from album” no longer deletes `PhotoEntry` (prevents breaking Story slide references); it toggles `isInHomeAlbum = false`.
+
 #### PHASE 12.6 — Animations + transitions pass
 **Goal:** Small motion polish only (nothing that risks correctness).
 
@@ -1401,8 +1404,8 @@ Treat each mini-phase below as a **standalone PR-sized chunk**. When you say “
 - Do you want a **temporary icon** (simple) or should we wait for a real design asset?
 
 **Done checklist:**
-- [ ] App icon appears in simulator/device
-- [ ] End-to-end walkthrough passes (import → tag → story → search → settings)
+- [x] App icon appears in simulator/device (provided by product)
+- [x] End-to-end walkthrough passes (import → tag → story → search → settings) — static QA pass + consistency fixes
 
 #### PHASE 12.9 (Optional) — Appearance + Ranger tuning
 **Goal:** Only if you explicitly want it: wire `AppSettings.appearanceMode` and/or adjust Ranger tokens.

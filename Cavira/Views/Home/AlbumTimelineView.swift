@@ -4,6 +4,7 @@ import SwiftUI
 struct AlbumTimelineView: View {
     let photos: [PhotoEntry]
     let onRequestRemove: (PhotoEntry) -> Void
+    var onEdit: ((PhotoEntry) -> Void)? = nil
 
     private var sections: [MonthSection] {
         MonthSection.build(from: photos)
@@ -39,6 +40,11 @@ struct AlbumTimelineView: View {
                                         }
                                         .buttonStyle(.plain)
                                         .contextMenu {
+                                            if let onEdit {
+                                                Button("Edit", systemImage: "pencil") {
+                                                    onEdit(entry)
+                                                }
+                                            }
                                             Button("Remove from album", systemImage: "rectangle.badge.minus", role: .destructive) {
                                                 onRequestRemove(entry)
                                             }

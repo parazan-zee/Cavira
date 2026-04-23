@@ -6,6 +6,7 @@ struct SettingsView: View {
 
     @State private var settings: AppSettings?
     @State private var storageUsedBytes: Int64 = 0
+    @State private var showThemePicker = false
 
     var body: some View {
         Form {
@@ -43,11 +44,31 @@ struct SettingsView: View {
                     Text("Videos").tag(HomeViewMode.videos)
                 }
                 .tint(CaviraTheme.accent)
+
+                HStack {
+                    Text("Theme")
+                        .foregroundStyle(CaviraTheme.textPrimary)
+                    Spacer()
+                    Button {
+                        showThemePicker = true
+                    } label: {
+                        HStack(spacing: 10) {
+                            themeSwatch(themePaletteBinding.wrappedValue.swatchColor)
+                            Text(themePaletteBinding.wrappedValue.displayName)
+                                .foregroundStyle(CaviraTheme.textTertiary)
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(CaviraTheme.textTertiary)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Theme")
+                }
             } header: {
                 Text("Display")
                     .foregroundStyle(CaviraTheme.textSecondary)
             } footer: {
-                Text("Cavira v1 ships one visual system (Ranger). Appearance and themes aren’t configurable yet.")
+                Text("Ranger is the default. Themes change colors only — layout and features stay the same.")
                     .font(CaviraTheme.Typography.caption)
                     .foregroundStyle(CaviraTheme.textTertiary)
             }
@@ -90,6 +111,18 @@ struct SettingsView: View {
             sanitizeLegacyDefaultsIfNeeded(s)
             storageUsedBytes = Int64(appServices?.photoStorage.totalStorageUsed() ?? 0)
         }
+        .sheet(isPresented: $showThemePicker) {
+            ThemePickerSheet(
+                selected: themePaletteBinding.wrappedValue,
+                onSelect: { palette in
+                    themePaletteBinding.wrappedValue = palette
+                    showThemePicker = false
+                },
+                onCancel: { showThemePicker = false }
+            )
+            .presentationDetents([.fraction(0.75), .large])
+            .presentationDragIndicator(.visible)
+        }
     }
 
     private var defaultHomeViewBinding: Binding<HomeViewMode> {
@@ -110,6 +143,29 @@ struct SettingsView: View {
                 try? modelContext.save()
             }
         )
+    }
+
+    private var themePaletteBinding: Binding<ThemePalette> {
+        Binding(
+            get: { settings?.themePalette ?? .ranger },
+            set: { newValue in
+                let s = settings ?? DataService.getOrCreateSettings(context: modelContext)
+                settings = s
+                s.themePalette = newValue
+                try? modelContext.save()
+                ThemeStore.shared.apply(newValue)
+            }
+        )
+    }
+
+    private func themeSwatch(_ color: Color) -> some View {
+        RoundedRectangle(cornerRadius: 3, style: .continuous)
+            .fill(color)
+            .frame(width: 14, height: 14)
+            .overlay(
+                RoundedRectangle(cornerRadius: 3, style: .continuous)
+                    .stroke(CaviraTheme.border, lineWidth: 1)
+            )
     }
 
     private func sanitizeLegacyDefaultsIfNeeded(_ settings: AppSettings) {

@@ -12,10 +12,13 @@ final class PhotoImageLoader {
     private let imageManager = PHImageManager.default()
     private let photoLibrary: PhotoLibraryService
     private let cache = NSCache<NSString, UIImage>()
+    private let cacheQueue = DispatchQueue(label: "cavira.photoimageloader.cache", qos: .userInitiated)
 
     init(photoLibrary: PhotoLibraryService) {
         self.photoLibrary = photoLibrary
-        cache.countLimit = 200
+        cache.countLimit = 220
+        // Keep memory bounded: ~96MB decoded-image cache (thumbnails + a few larger frames).
+        cache.totalCostLimit = 96 * 1024 * 1024
     }
 
     func clearCache() {
@@ -40,7 +43,9 @@ final class PhotoImageLoader {
         } else {
             image = await requestFullLibraryImage(for: asset)
         }
-        if let image { cache.setObject(image, forKey: key) }
+        if let image {
+            cache.setObject(image, forKey: key, cost: estimatedCostBytes(for: image))
+        }
         return image
     }
 
@@ -73,7 +78,7 @@ final class PhotoImageLoader {
         }
 
         if let image {
-            cache.setObject(image, forKey: key as NSString)
+            cache.setObject(image, forKey: key as NSString, cost: estimatedCostBytes(for: image))
         }
         return image
     }
@@ -162,6 +167,15 @@ final class PhotoImageLoader {
 
     private func cacheKey(entryID: UUID, targetSize: CGSize) -> String {
         "\(entryID.uuidString)|\(Int(targetSize.width))x\(Int(targetSize.height))"
+    }
+
+    private func estimatedCostBytes(for image: UIImage) -> Int {
+        if let cg = image.cgImage {
+            return cg.bytesPerRow * cg.height
+        }
+        let pxW = max(Int(image.size.width * image.scale), 1)
+        let pxH = max(Int(image.size.height * image.scale), 1)
+        return pxW * pxH * 4
     }
 }
 

@@ -38,32 +38,16 @@ struct HomeScreen: View {
     @State private var showPhotoDeniedAlert = false
     @State private var entryPendingRemoval: PhotoEntry?
     @State private var showRemoveConfirm = false
+    @State private var entryPendingEdit: PhotoEntry?
+    @State private var showEditTags = false
 
     var body: some View {
-        Group {
-            switch homeViewMode {
-            case .timeline:
-                AlbumTimelineView(photos: photos) { entry in
-                    entryPendingRemoval = entry
-                    showRemoveConfirm = true
-                }
-            case .videos:
-                GridView(
-                    photos: videoPhotos,
-                    emptyTitle: videosOnlyEmptyTitle,
-                    emptySubtitle: videosOnlyEmptySubtitle,
-                    onRequestRemove: { entry in
-                        entryPendingRemoval = entry
-                        showRemoveConfirm = true
-                    }
-                )
-            case .grid, .profile, .events:
-                GridView(photos: photos) { entry in
-                    entryPendingRemoval = entry
-                    showRemoveConfirm = true
-                }
-            }
+        ZStack {
+            homeContent
+                .id(homeViewMode)
+                .transition(.opacity)
         }
+        .animation(.easeInOut(duration: 0.18), value: homeViewMode)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(CaviraTheme.backgroundPrimary)
         .navigationTitle("Cavira")
@@ -163,12 +147,66 @@ struct HomeScreen: View {
         } message: { _ in
             Text("This only removes the item from your Cavira album. Nothing is deleted from Apple Photos.")
         }
+        .sheet(isPresented: $showEditTags) {
+            if let entryPendingEdit {
+                EditTagsSheet(entry: entryPendingEdit)
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
+            }
+        }
         .onChange(of: showRemoveConfirm) { _, isShowing in
             if !isShowing { entryPendingRemoval = nil }
+        }
+        .onChange(of: showEditTags) { _, isShowing in
+            if !isShowing { entryPendingEdit = nil }
         }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
             appServices?.photoLibrary.refreshAuthorizationStatus()
+        }
+    }
+    
+    @ViewBuilder
+    private var homeContent: some View {
+        switch homeViewMode {
+        case .timeline:
+            AlbumTimelineView(
+                photos: photos,
+                onRequestRemove: { entry in
+                    entryPendingRemoval = entry
+                    showRemoveConfirm = true
+                },
+                onEdit: { entry in
+                    entryPendingEdit = entry
+                    showEditTags = true
+                }
+            )
+        case .videos:
+            GridView(
+                photos: videoPhotos,
+                emptyTitle: videosOnlyEmptyTitle,
+                emptySubtitle: videosOnlyEmptySubtitle,
+                onRequestRemove: { entry in
+                    entryPendingRemoval = entry
+                    showRemoveConfirm = true
+                },
+                onEdit: { entry in
+                    entryPendingEdit = entry
+                    showEditTags = true
+                }
+            )
+        case .grid, .profile, .events:
+            GridView(
+                photos: photos,
+                onRequestRemove: { entry in
+                    entryPendingRemoval = entry
+                    showRemoveConfirm = true
+                },
+                onEdit: { entry in
+                    entryPendingEdit = entry
+                    showEditTags = true
+                }
+            )
         }
     }
 
