@@ -9,7 +9,14 @@ struct HomeScreen: View {
     @Environment(\.openURL) private var openURL
     @Environment(\.scenePhase) private var scenePhase
 
-    @Query(filter: #Predicate<PhotoEntry> { $0.isInHomeAlbum == true }, sort: \PhotoEntry.capturedDate, order: .reverse) private var photos: [PhotoEntry]
+    @Query(
+        filter: #Predicate<PhotoEntry> { $0.isInHomeAlbum == true },
+        sort: [
+            SortDescriptor(\PhotoEntry.homeOrderIndex, order: .forward),
+            SortDescriptor(\PhotoEntry.capturedDate, order: .reverse),
+        ]
+    )
+    private var photos: [PhotoEntry]
 
     /// Album entries with `mediaKind == .video` (Videos segment only).
     private var videoPhotos: [PhotoEntry] {
@@ -40,6 +47,7 @@ struct HomeScreen: View {
     @State private var showRemoveConfirm = false
     @State private var entryPendingEdit: PhotoEntry?
     @State private var showEditTags = false
+    @State private var showReorderHome = false
 
     var body: some View {
         ZStack {
@@ -61,6 +69,17 @@ struct HomeScreen: View {
                 }
                 .pickerStyle(.segmented)
                 .accessibilityLabel("Home layout")
+            }
+            ToolbarItem(placement: .topBarLeading) {
+                Button {
+                    showReorderHome = true
+                } label: {
+                    Image(systemName: "arrow.up.arrow.down")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(CaviraTheme.textSecondary)
+                }
+                .accessibilityLabel("Reorder album")
+                .disabled(photos.count < 2)
             }
             ToolbarItem(placement: .topBarTrailing) {
                 AlbumImportToolbarButton(accessibilityLabel: "Add to album") {
@@ -121,6 +140,11 @@ struct HomeScreen: View {
             case .importOptions(let results):
                 ImportOptionsSheet(pickerResults: results)
             }
+        }
+        .sheet(isPresented: $showReorderHome) {
+            HomeReorderView()
+                .presentationDetents([.fraction(0.85), .large])
+                .presentationDragIndicator(.visible)
         }
         .alert("Photos access needed", isPresented: $showPhotoDeniedAlert) {
             Button("Open Settings") {

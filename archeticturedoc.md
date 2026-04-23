@@ -239,7 +239,7 @@ Keep this table in sync with the Cavira codebase as phases finish. Each phase se
 | **Settings — Reset Cavira** | Add a destructive **Reset** action in Settings with a **confirmation dialog**. Reset should wipe Cavira’s **SwiftData** (album `PhotoEntry` rows, tags/stories if present) and restore **`AppSettings`** defaults, but **never delete anything from Apple Photos**. |
 | **Home timeline — sticky month headers** | Current **`AlbumTimelineView`** uses **non-sticky** month titles; upgrade via **`List`/`Section`** or custom stickies in **Phase 12** (or earlier if product pulls it forward). |
 | **SwiftData migrations** | As models evolve, plan **lightweight migrations** or **VersionedSchema** so TestFlight / App Store users are not forced to delete the app. |
-| **`ranger_theme.md`** | Human-readable **Ranger** spec; **canonical code** is **`CaviraTheme.swift`**. Keep the two in sync (especially hexes). |
+| **Theme tokens** | **Canonical code** is **`Cavira/Theme/CaviraTheme.swift`**. Theme palettes and their hex tokens are documented in this architecture doc under **Theme palettes — options + hex codes (implemented)**. |
 | **Retire `HomeViewMode.profile`** | UI already hides **Profile**; remove the enum case (and any stored defaults migration) when safe — small cleanup pass, not blocking Phase 6. |
 | **Stories — timed clips** | **~10 s** story segments (capture or trim). |
 
@@ -553,7 +553,7 @@ Compile with zero errors. No new tab/feature views.
 
 **Why before content:** Validates that the navigation structure is sound before filling it with real content. Cheaper to restructure tabs now than after 10 views are built on top.
 
-**Implemented conventions:** See **“Cavira v1 UI & shell decisions”** above (iPhone-only, one stack per tab, `RootView`, `AppSettings` + explicit `save()`, Instagram-style home segments, English copy, preview helper, no deep links). **Product layout** evolves under **“Cavira UX direction”** (e.g. second tab label **Calendar**, Home **Grid \| Timeline \| Videos**). **Colour system:** **`CaviraTheme`** / Ranger (`ranger_theme.md`), accent **`#D4B96A`**.
+**Implemented conventions:** See **“Cavira v1 UI & shell decisions”** above (iPhone-only, one stack per tab, `RootView`, `AppSettings` + explicit `save()`, Instagram-style home segments, English copy, preview helper, no deep links). **Product layout** evolves under **“Cavira UX direction”** (e.g. second tab label **Calendar**, Home **Grid \| Timeline \| Videos**). **Colour system:** **`CaviraTheme`** palettes + hex tokens are documented here (see **Theme palettes — options + hex codes (implemented)**).
 
 ---
 
@@ -834,7 +834,7 @@ struct EmptyStateView: View {
 Ship the Ranger visual system as Cavira’s only v1 skin.
 
 ## Theme/CaviraTheme.swift (new)
-- Define **`enum CaviraTheme`** (or `struct` if you prefer) with **every colour from `ranger_theme.md` using `Color(hex: "#……")` — hex strings must match the markdown exactly character-for-character.
+- Define **`enum CaviraTheme`** (or `struct` if you prefer) with token colors centralized in one place (use `Color(hex: "#……")`).
 - Include nested **Typography**, **Radius**, **Spacing** per the spec.
 - Add **`applyGlobalChrome()`** using `UITabBar.appearance()`, `UINavigationBar.appearance()`, `UISegmentedControl.appearance()`, `UITableView.appearance()` (and any other UIKit chrome that still shows through SwiftUI) so system controls match Ranger.
 - Keep the **`Color` + hex parser** in this file only — nowhere else in the app should parse hex strings.
@@ -866,7 +866,7 @@ Ship the Ranger visual system as Cavira’s only v1 skin.
 ---
 
 ### Phase 5.5 Test Checklist
-- [ ] **`CaviraTheme`** exists; **all** hex literals match **`ranger_theme.md`**
+- [ ] **`CaviraTheme`** exists; tokens are centralized and documented in this file
 - [ ] **`AccentColor`** asset matches **`#D4B96A`**
 - [ ] **`applyGlobalChrome()`** runs at launch; tab bar + nav bar + segmented control read as Ranger (not raw iOS defaults)
 - [ ] **`RootView`** uses **`backgroundPrimary`**, **`.preferredColorScheme(.dark)`**, **`.tint(accent)`**
@@ -1481,7 +1481,7 @@ Final polish pass. Address edge cases, add missing feedback, and ensure a consis
 
 ## Optional — appearance & Ranger tuning (only if product approves)
 - **`AppSettings.appearanceMode`:** if light / system / dark becomes a product requirement, wire **`.preferredColorScheme`** from settings and audit **every** screen for contrast (today the app assumes **forced dark** + Ranger tokens).
-- **Dark-mode tint pass:** optional small adjustments to **`CaviraTheme`** tokens or materials so Ranger feels best under true system dark vs the current “always dark” shell — **hex discipline:** any change must be a deliberate design update to **`ranger_theme.md`** and **`CaviraTheme.swift` together**.
+- **Dark-mode tint pass:** optional small adjustments to **`CaviraTheme`** tokens/materials — keep hex discipline by updating `CaviraTheme.swift` and the documented palette tokens section together.
 - **SwiftUI-only chrome:** optional experiment to replace UIKit **`appearance()`** styling with pure SwiftUI tab/nav styling if global side effects (e.g. previews) become painful — low priority.
 
 ## Optional — Stories builder UI polish (deferred)
@@ -1573,4 +1573,4 @@ Review the entire app for any obvious UI inconsistencies — font sizes, spacing
 | 12 | Polish & QA (+ optional appearance / tint / SwiftUI chrome) | All phases |
 
 
-*Document version 1.13 — Cavira iOS App. **Shipped:** Phases 1–11 (see **Repo snapshot**). **Next:** Phase **12** (Polish & QA). **Close v1:** Phase 12 + **Additional improvements** backlog. **Design note:** **`CaviraTheme`** / **`ranger_theme.md`** is the canonical v1 colour system; optional light/system appearance or palette work is **Phase 12** only, if approved. **Home:** toolbar segments **Grid \| Timeline \| Videos**; Calendar is capture-counts + day drill-in + recap; Stories are the only narrative/grouping layer.*
+*Document version 1.13 — Cavira iOS App. **Shipped:** Phases 1–11 (see **Repo snapshot**). **Next:** Phase **12** (Polish & QA). **Close v1:** Phase 12 + **Additional improvements** backlog. **Design note:** **`CaviraTheme`** is the canonical colour system; palettes and hex tokens are documented in this file. **Home:** toolbar segments **Grid \| Timeline \| Videos**; Calendar is capture-counts + day drill-in + recap; Stories are the only narrative/grouping layer.*

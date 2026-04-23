@@ -13,6 +13,7 @@ struct StoryDraftEditorView: View {
     @State private var selectedOverlay: SelectedOverlay?
     @State private var isEditingText = false
     @State private var editingText = ""
+    @State private var showReorderSlides = false
 
     init(selectedEntries: [PhotoEntry], editingStory: Story? = nil, onFinish: @escaping () -> Void) {
         self.selectedEntries = selectedEntries
@@ -81,12 +82,30 @@ struct StoryDraftEditorView: View {
                 }
                 .accessibilityLabel("Preview story")
             }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    showReorderSlides = true
+                } label: {
+                    Image(systemName: "arrow.up.arrow.down")
+                        .foregroundStyle(.white.opacity(0.9))
+                }
+                .accessibilityLabel("Reorder slides")
+                .disabled(draftSlides.count < 2)
+            }
         }
         .sheet(isPresented: $showStickerPicker) {
             StickerPickerSheet { symbolName in
                 addSticker(symbolName)
                 showStickerPicker = false
             }
+        }
+        .sheet(isPresented: $showReorderSlides) {
+            StorySlidesReorderSheet(
+                slides: $draftSlides,
+                currentIndex: $currentIndex
+            )
+            .presentationDetents([.fraction(0.85), .large])
+            .presentationDragIndicator(.visible)
         }
         .overlay(alignment: .bottom) {
             if isEditingText {

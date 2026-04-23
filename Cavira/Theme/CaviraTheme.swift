@@ -212,7 +212,7 @@ enum CaviraTheme {
 
     static var cardShadowColor: Color { tokens.cardShadowColor }
 
-    // MARK: — Typography (system; matches `ranger_theme.md` scale)
+    // MARK: — Typography (system; keep scale consistent across palettes)
 
     enum Typography {
         static let largeTitle = Font.system(size: 28, weight: .semibold, design: .default)

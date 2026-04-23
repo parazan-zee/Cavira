@@ -22,6 +22,8 @@ final class PhotoEntry {
     var isLivePhoto: Bool
     /// If true, this entry appears in the Home album (Grid/Timeline/Videos). Story-only items can keep this false.
     var isInHomeAlbum: Bool
+    /// Manual ordering for Home album (optional for migration safety). When nil, Home falls back to capturedDate order.
+    var homeOrderIndex: Int?
     var capturedDate: Date
     var loggedDate: Date
     /// User-facing title for this photo/video (optional, set during import or later in Edit).
@@ -75,6 +77,7 @@ final class PhotoEntry {
         mediaKind: PhotoAssetKind = .image,
         isLivePhoto: Bool = false,
         isInHomeAlbum: Bool = true,
+        homeOrderIndex: Int? = nil,
         capturedDate: Date,
         loggedDate: Date = Date(),
         title: String? = nil,
@@ -94,6 +97,7 @@ final class PhotoEntry {
         self.mediaKind = mediaKind
         self.isLivePhoto = isLivePhoto
         self.isInHomeAlbum = isInHomeAlbum
+        self.homeOrderIndex = homeOrderIndex
         self.capturedDate = capturedDate
         self.loggedDate = loggedDate
         self.title = title
