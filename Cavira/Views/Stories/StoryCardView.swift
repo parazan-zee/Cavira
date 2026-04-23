@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 
 struct StoryCardView: View {
@@ -6,6 +7,7 @@ struct StoryCardView: View {
     var onMenu: () -> Void
 
     @Environment(\.appServices) private var appServices
+    @Environment(\.modelContext) private var modelContext
     @State private var cover: UIImage?
 
     var body: some View {
@@ -170,19 +172,25 @@ struct StoryCardView: View {
     @MainActor
     private func loadCover() async {
         guard let loader = appServices?.photoImageLoader else { return }
-        guard let entry = coverEntry else {
+        let entry = coverEntryFromStore() ?? fallbackCoverEntry
+        guard let entry else {
             cover = nil
             return
         }
+
         cover = await loader.loadImage(for: entry, targetSize: CGSize(width: 420, height: 420))
     }
 
-    private var coverEntry: PhotoEntry? {
-        if let coverID = story.coverPhotoId,
-           let match = story.orderedSlides.first(where: { $0.photo?.id == coverID })?.photo {
-            return match
-        }
-        return story.orderedSlides.first?.photo
+    private func coverEntryFromStore() -> PhotoEntry? {
+        guard let coverID = story.coverPhotoId else { return nil }
+        let descriptor = FetchDescriptor<PhotoEntry>(
+            predicate: #Predicate { $0.id == coverID }
+        )
+        return try? modelContext.fetch(descriptor).first
+    }
+
+    private var fallbackCoverEntry: PhotoEntry? {
+        story.orderedSlides.first?.photo
     }
 
     // MARK: - Mini strip

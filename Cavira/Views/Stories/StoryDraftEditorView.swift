@@ -3,6 +3,7 @@ import SwiftUI
 /// Slide-by-slide editor for a draft story (before saving to SwiftData).
 struct StoryDraftEditorView: View {
     let selectedEntries: [PhotoEntry]
+    let editingStory: Story?
     let onFinish: () -> Void
 
     @State private var draftSlides: [StorySlide]
@@ -15,9 +16,26 @@ struct StoryDraftEditorView: View {
 
     init(selectedEntries: [PhotoEntry], onFinish: @escaping () -> Void) {
         self.selectedEntries = selectedEntries
+        self.editingStory = nil
         self.onFinish = onFinish
         let slides = selectedEntries.enumerated().map { idx, entry in
             StorySlide(order: idx, photo: entry)
+        }
+        _draftSlides = State(initialValue: slides)
+    }
+
+    init(editingStory: Story, onFinish: @escaping () -> Void) {
+        self.selectedEntries = []
+        self.editingStory = editingStory
+        self.onFinish = onFinish
+        let slides = editingStory.orderedSlides.enumerated().map { idx, slide in
+            StorySlide(
+                order: idx,
+                photo: slide.photo,
+                backgroundColour: slide.backgroundColour,
+                textOverlays: slide.textOverlays,
+                stickerOverlays: slide.stickerOverlays
+            )
         }
         _draftSlides = State(initialValue: slides)
     }
@@ -47,7 +65,7 @@ struct StoryDraftEditorView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 NavigationLink {
-                    StorySaveView(draftSlides: draftSlides) { onFinish() }
+                    StorySaveView(draftSlides: draftSlides, editingStory: editingStory) { onFinish() }
                 } label: {
                     Text("Save")
                         .font(CaviraTheme.Typography.body.weight(.semibold))

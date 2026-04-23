@@ -62,7 +62,7 @@ Keep this table in sync with the Cavira codebase as phases finish. Each phase se
 | 6.1 — Calendar year/month navigation | ✅ Complete |
 | 7 — Tagging | ✅ Complete |
 | 8 — Search | ✅ Complete |
-| 9 — Stories | 🚧 In progress |
+| 9 — Stories | ✅ Complete |
 | 10 — Settings & storage | ⏳ Not started |
 | 11 — Profile & pinning | ⏳ Not started |
 | 12 — Polish & QA | ⏳ Not started |
@@ -1048,7 +1048,7 @@ Search should feel instant for typical library sizes (up to ~2000 photos). No lo
 ---
 
 # PHASE 9 — Stories (Viewer & Builder)
-**Build tracker:** ⏳ Not started
+**Build tracker:** ✅ Complete
 
 ### Goal: Users can create Instagram-style Stories (photos + videos) that play like a slideshow of a single memory (holiday / day out / graduation) without creating a separate media store.
 

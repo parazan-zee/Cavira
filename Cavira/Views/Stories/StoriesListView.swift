@@ -7,8 +7,7 @@ struct StoriesListView: View {
 
     @State private var selectedStory: Story?
     @State private var showingBuilder = false
-    @State private var showingEditBuilder = false
-    @State private var editPrefillLocalIdentifiers: [String] = []
+    @State private var storyToEdit: Story?
 
     @State private var storyForMenu: Story?
     @State private var showActionsSheet = false
@@ -105,16 +104,19 @@ struct StoriesListView: View {
         .sheet(isPresented: $showingBuilder) {
             StoryBuilderView()
         }
-        .sheet(isPresented: $showingEditBuilder) {
-            StoryBuilderView(prefillAssetLocalIdentifiers: editPrefillLocalIdentifiers)
+        .sheet(item: $storyToEdit) { story in
+            NavigationStack {
+                StoryDraftEditorView(editingStory: story) {
+                    storyToEdit = nil
+                }
+            }
         }
         .confirmationDialog("Story", isPresented: $showActionsSheet, titleVisibility: .hidden, presenting: storyForMenu) { story in
             Button(story.isPinned ? "Unpin from profile" : "Pin to profile") {
                 togglePin(story)
             }
             Button("Edit story") {
-                editPrefillLocalIdentifiers = story.orderedSlides.compactMap { $0.photo?.localIdentifier }
-                showingEditBuilder = true
+                storyToEdit = story
             }
             Button("Delete story", role: .destructive) {
                 storyToDelete = story
@@ -154,8 +156,7 @@ struct StoriesListView: View {
         }
 
         Button {
-            editPrefillLocalIdentifiers = story.orderedSlides.compactMap { $0.photo?.localIdentifier }
-            showingEditBuilder = true
+            storyToEdit = story
         } label: {
             Label("Edit story", systemImage: "pencil")
         }

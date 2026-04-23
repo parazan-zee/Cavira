@@ -37,6 +37,7 @@ struct StorySaveView: View {
     @Environment(\.appServices) private var appServices
 
     let draftSlides: [StorySlide]
+    let editingStory: Story?
     let onFinish: () -> Void
 
     @State private var titleText: String = ""
@@ -278,7 +279,14 @@ struct StorySaveView: View {
         }
         .onAppear {
             if coverPhotoId == nil {
-                coverPhotoId = defaultCoverID
+                coverPhotoId = editingStory?.coverPhotoId ?? defaultCoverID
+            }
+            if titleText.isEmpty, let s = editingStory {
+                titleText = s.title
+                storyDescription = s.storyDescription ?? ""
+                storyDate = s.storyDate
+                appliedLocationTag = s.locationTag
+                appliedPeopleTags = s.peopleTags
             }
         }
         .sheet(isPresented: $showCoverPicker) {
@@ -309,22 +317,60 @@ struct StorySaveView: View {
         guard !title.isEmpty else { return }
 
         isSaving = true
-        let story = Story(
-            title: title,
-            storyDescription: storyDescription.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : storyDescription.trimmingCharacters(in: .whitespacesAndNewlines),
-            storyDate: storyDate,
-            locationTag: appliedLocationTag,
-            peopleTags: appliedPeopleTags,
-            coverPhotoId: coverPhotoId ?? defaultCoverID,
-            createdDate: .now,
-            lastEditedDate: .now
-        )
-        modelContext.insert(story)
+        let description = storyDescription.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? nil
+            : storyDescription.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        for (idx, slide) in draftSlides.enumerated() {
-            slide.order = idx
-            slide.story = story
-            modelContext.insert(slide)
+        if let existing = editingStory {
+            existing.title = title
+            existing.storyDescription = description
+            existing.storyDate = storyDate
+            existing.locationTag = appliedLocationTag
+            existing.peopleTags = appliedPeopleTags
+            existing.coverPhotoId = coverPhotoId ?? defaultCoverID
+            existing.lastEditedDate = .now
+
+            // Replace slides (v1: no manual reorder; order is determined by the draft array).
+            for slide in existing.slides {
+                modelContext.delete(slide)
+            }
+            existing.slides = []
+
+            for (idx, draft) in draftSlides.enumerated() {
+                let slide = StorySlide(
+                    order: idx,
+                    photo: draft.photo,
+                    backgroundColour: draft.backgroundColour,
+                    textOverlays: draft.textOverlays,
+                    stickerOverlays: draft.stickerOverlays,
+                    story: existing
+                )
+                modelContext.insert(slide)
+            }
+        } else {
+            let story = Story(
+                title: title,
+                storyDescription: description,
+                storyDate: storyDate,
+                locationTag: appliedLocationTag,
+                peopleTags: appliedPeopleTags,
+                coverPhotoId: coverPhotoId ?? defaultCoverID,
+                createdDate: .now,
+                lastEditedDate: .now
+            )
+            modelContext.insert(story)
+
+            for (idx, draft) in draftSlides.enumerated() {
+                let slide = StorySlide(
+                    order: idx,
+                    photo: draft.photo,
+                    backgroundColour: draft.backgroundColour,
+                    textOverlays: draft.textOverlays,
+                    stickerOverlays: draft.stickerOverlays,
+                    story: story
+                )
+                modelContext.insert(slide)
+            }
         }
 
         try? modelContext.save()
