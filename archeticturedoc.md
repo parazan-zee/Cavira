@@ -63,7 +63,7 @@ Keep this table in sync with the Cavira codebase as phases finish. Each phase se
 | 7 — Tagging | ✅ Complete |
 | 8 — Search | ✅ Complete |
 | 9 — Stories | ✅ Complete |
-| 10 — Settings & storage | ⏳ Not started |
+| 10 — Settings & storage | ✅ Complete |
 | 11 — Profile & pinning | ⏳ Not started |
 | 12 — Polish & QA | ⏳ Not started |
 
@@ -1205,7 +1205,7 @@ Sticker overlay interaction:
 ---
 
 # PHASE 10 — Settings & Storage Management
-**Build tracker:** ⏳ Not started
+**Build tracker:** ✅ Complete
 
 ### Goal: Settings screen fully functional for **storage** and **non-appearance** preferences. **Visual identity stays `CaviraTheme` / Ranger** — Phase 10 does **not** add light mode, system appearance, or alternate colour palettes (those belong in **Phase 12** only if product reopens them).
 
