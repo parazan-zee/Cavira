@@ -1111,8 +1111,11 @@ Navigation flow:
 
 ### Views/Stories/SlidePickerView.swift
 - Grid of the user’s **Photos library** items (photos + videos) for selection (Photos-backed, not limited to Home album).
-- Multi-select enabled — tap to select/deselect, selected cells show a checkmark badge
-- **No manual reorder** in v1. Selection order is **capturedDate ascending** (date taken).
+- **Grid layout:** **uniform 3-column** square cells (Instagram-style crop), with tight spacing; no uneven / spanning cells.
+- Multi-select enabled — tap to select/deselect; selected cells show a **numbered** badge that reflects selection order.
+- **Selected strip:** a horizontal strip of selected items appears at the top with **numbered thumbnails**; user can **remove** items and **drag-to-reorder** the strip (grid badges update live).
+- **Sort toggle:** **Date taken** ascending / descending only; grid re-sorts immediately.
+- **Album switcher label:** show an **Albums** affordance in the header (even if it’s a no-op in v1) so there’s a clear future entry point for switching sources (especially for **videos** / future album filtering).
 - "Next" button → proceeds to slide editors
 - Capture button (camera): take a photo/video and add it to the current story
   - Must save into **Apple Photos** first (no Cavira-private capture store), then include it as a selectable library item.
@@ -1326,6 +1329,9 @@ Final polish pass. Address edge cases, add missing feedback, and ensure a consis
 - **`AppSettings.appearanceMode`:** if light / system / dark becomes a product requirement, wire **`.preferredColorScheme`** from settings and audit **every** screen for contrast (today the app assumes **forced dark** + Ranger tokens).
 - **Dark-mode tint pass:** optional small adjustments to **`CaviraTheme`** tokens or materials so Ranger feels best under true system dark vs the current “always dark” shell — **hex discipline:** any change must be a deliberate design update to **`ranger_theme.md`** and **`CaviraTheme.swift` together**.
 - **SwiftUI-only chrome:** optional experiment to replace UIKit **`appearance()`** styling with pure SwiftUI tab/nav styling if global side effects (e.g. previews) become painful — low priority.
+
+## Optional — Stories builder UI polish (deferred)
+- **SlidePickerView album switcher label:** keep the **Albums** affordance visible in the picker header (even if it’s a no-op in v1), so the UI has a clear place to support **album switching** and **video-specific sources** in a future pass.
 
 ## Missing asset handling:
 In PhotoImageLoader, if a PHAsset referenced by localIdentifier no longer exists in the Photos library:

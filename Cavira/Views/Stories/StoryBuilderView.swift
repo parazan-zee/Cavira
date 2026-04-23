@@ -13,7 +13,8 @@ struct StoryBuilderView: View {
         NavigationStack {
             SlidePickerView(
                 prefillAssetLocalIdentifiers: prefillAssetLocalIdentifiers,
-                sourceDay: sourceDay
+                sourceDay: sourceDay,
+                onCancel: { dismiss() }
             ) { selectedEntries in
                 let sorted = selectedEntries.sorted { $0.capturedDate < $1.capturedDate }
                 return StoryDraftEditorView(selectedEntries: sorted) { dismiss() }
