@@ -173,6 +173,59 @@ Keep this table in sync with the Cavira codebase as phases finish. Each phase se
 - **Chrome implementation:** UIKit global appearances are applied via `CaviraTheme.applyGlobalChrome()` at launch and re-applied when palette changes. `RootView` forces a `TabView` refresh on palette change to ensure the tab bar reflects the new colours.
 - **Colour scheme:** When `appearanceMode == .system`, `RootView` uses the palette’s default scheme (**Cloud → light**, others → dark).
 
+#### Theme palettes — options + hex codes (implemented)
+
+**Where it lives (code):**
+- `Cavira/Models/Enums.swift`: `ThemePalette` enum (options + swatch + default scheme)
+- `Cavira/Theme/CaviraTheme.swift`: palette token definitions + `applyGlobalChrome()`
+- `Cavira/Theme/ThemeStore.swift`: runtime palette store + applies palette + re-applies chrome
+- `Cavira/Views/Settings/ThemePickerSheet.swift`: swatch-based picker UI
+- `Cavira/RootView.swift`: applies palette at launch and refreshes tab chrome on change
+
+**Theme options (user-facing):**
+- Ranger (default)
+- Cloud
+- Midnight
+- Arctic
+- Ember
+
+**Palette tokens (hex):** values below match `Cavira/Theme/CaviraTheme.swift`.
+
+- **Ranger**
+  - backgroundPrimary `#2B2A20`, backgroundSecondary `#332F23`
+  - surfaceCard `#4E4936`, surfaceElevated `#6B6448`, surfacePhoto `#3D3828`
+  - accent `#D4B96A` (pressed `#B8994E`)
+  - textPrimary `#E2D5B0`, textSecondary `#C4B48A`, textTertiary `#8B8060`
+  - border `#4E4936`, borderStrong `#6B6448`
+
+- **Cloud**
+  - backgroundPrimary `#FFFFFF`, backgroundSecondary `#F4F1EA`
+  - surfaceCard `#EEE9DF`, surfaceElevated `#E6E0D4`, surfacePhoto `#F0ECE3`
+  - accent `#111111` (pressed `#000000`)
+  - textPrimary `#141414`, textSecondary `#2C2C2C`, textTertiary `#6A6A6A`
+  - border `#E1DBCF`, borderStrong `#D2CBBE`
+
+- **Midnight**
+  - backgroundPrimary `#000000`, backgroundSecondary `#0B0B0B`
+  - surfaceCard `#121212`, surfaceElevated `#1A1A1A`, surfacePhoto `#0F0F0F`
+  - accent `#F4F4F4` (pressed `#D9D9D9`)
+  - textPrimary `#F2F2F2`, textSecondary `#D6D6D6`, textTertiary `#8B8B8B`
+  - border `#1C1C1C`, borderStrong `#2A2A2A`
+
+- **Arctic**
+  - backgroundPrimary `#0B1626`, backgroundSecondary `#0F1D33`
+  - surfaceCard `#12243F`, surfaceElevated `#162B4B`, surfacePhoto `#0F1F35`
+  - accent `#5FA8FF` (pressed `#3E8FF2`)
+  - textPrimary `#E6F0FF`, textSecondary `#C8DAF7`, textTertiary `#7F97B8`
+  - border `#1A2D4D`, borderStrong `#244066`
+
+- **Ember**
+  - backgroundPrimary `#1A120D`, backgroundSecondary `#21160F`
+  - surfaceCard `#2A1B12`, surfaceElevated `#352114`, surfacePhoto `#24170F`
+  - accent `#FF8A3D` (pressed `#E8742E`)
+  - textPrimary `#F4E7DD`, textSecondary `#E2CFC1`, textTertiary `#A58B78`
+  - border `#3A2416`, borderStrong `#4A2D1B`
+
 ### Additional improvements (schedule into a phase when ready)
 
 | Item | Notes |
