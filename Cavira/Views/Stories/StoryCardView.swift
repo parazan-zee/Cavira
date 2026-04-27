@@ -124,7 +124,12 @@ struct StoryCardView: View {
 
                     Menu {
                         Button {
-                            onEdit()
+                            // Presenting a sheet while a Menu is dismissing can cause the label to "flicker"
+                            // due to overlapping transitions. Deferring to the next runloop (or a tiny delay)
+                            // lets the Menu fully dismiss first.
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+                                onEdit()
+                            }
                         } label: {
                             Label("Edit story", systemImage: "pencil")
                         }
@@ -152,6 +157,11 @@ struct StoryCardView: View {
                             .font(.system(size: 22))
                             .foregroundStyle(CaviraTheme.textTertiary)
                             .frame(width: 44, height: 44)
+                    }
+                    // Prevent a tiny "pop" animation when the menu dismisses and a sheet
+                    // presents (SwiftUI sometimes applies an implicit toolbar/menu transaction).
+                    .transaction { t in
+                        t.animation = nil
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Story actions")

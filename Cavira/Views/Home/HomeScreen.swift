@@ -7,16 +7,17 @@ struct HomeScreen: View {
     @Environment(\.appServices) private var appServices
     @Environment(\.modelContext) private var modelContext
     @Environment(\.openURL) private var openURL
-    @Environment(\.scenePhase) private var scenePhase
 
     @Query(
         filter: #Predicate<PhotoEntry> { $0.isInHomeAlbum == true },
-        sort: [
-            SortDescriptor(\PhotoEntry.homeOrderIndex, order: .forward),
-            SortDescriptor(\PhotoEntry.capturedDate, order: .reverse),
-        ]
+        sort: \PhotoEntry.capturedDate,
+        order: .reverse
     )
-    private var photos: [PhotoEntry]
+    private var queriedPhotos: [PhotoEntry]
+
+    private var photos: [PhotoEntry] {
+        queriedPhotos.sorted(by: photoSort)
+    }
 
     /// Album entries with `mediaKind == .video` (Videos segment only).
     private var videoPhotos: [PhotoEntry] {
@@ -24,9 +25,9 @@ struct HomeScreen: View {
     }
 
     @State private var homeViewMode: HomeViewMode = .grid
-    private enum HomeSheet: Identifiable {
+    fileprivate enum HomeSheet: Identifiable {
         case photoPicker
-        case importOptions(results: [PHPickerResult])
+        case importOptions(id: UUID, results: [PHPickerResult])
 
         private static let pickerID = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
 
@@ -34,9 +35,9 @@ struct HomeScreen: View {
             switch self {
             case .photoPicker:
                 return Self.pickerID
-            case .importOptions:
-                // New id each time ensures a fresh sheet instance.
-                return UUID()
+            case .importOptions(let id, _):
+                // Stable id keeps the sheet's internal @State from resetting on re-renders.
+                return id
             }
         }
     }
@@ -49,7 +50,158 @@ struct HomeScreen: View {
     @State private var showEditTags = false
     @State private var showReorderHome = false
 
+    // Prevent synthesized private memberwise init from `private` stored properties (e.g. `@Query photos`).
+    init() {}
+
     var body: some View {
+        HomeScreenScaffold(
+            homeViewMode: $homeViewMode,
+            activeSheet: $activeSheet,
+            showPhotoDeniedAlert: $showPhotoDeniedAlert,
+            entryPendingRemoval: $entryPendingRemoval,
+            showRemoveConfirm: $showRemoveConfirm,
+            entryPendingEdit: $entryPendingEdit,
+            showEditTags: $showEditTags,
+            showReorderHome: $showReorderHome,
+            photos: photos,
+            videoPhotos: videoPhotos,
+            beginImportFlow: beginImportFlow,
+            removeFromAlbum: removeFromAlbum,
+            onAppearLoadDefaultViewMode: onAppearLoadDefaultViewMode,
+            onChangeHomeViewMode: onChangeHomeViewMode,
+            openSettings: openSettings,
+            refreshAuthorizationStatus: refreshAuthorizationStatus
+        )
+    }
+
+    private func openSettings() {
+        if let url = URL(string: UIApplication.openSettingsURLString) {
+            openURL(url)
+        }
+    }
+
+    private func refreshAuthorizationStatus() {
+        appServices?.photoLibrary.refreshAuthorizationStatus()
+    }
+
+    private func onAppearLoadDefaultViewMode() {
+        let settings = DataService.getOrCreateSettings(context: modelContext)
+        let mode: HomeViewMode
+        switch settings.defaultHomeView {
+        case .events:
+            mode = .grid
+        case .profile:
+            mode = .grid
+        default:
+            mode = settings.defaultHomeView
+        }
+        homeViewMode = mode
+        if settings.defaultHomeView == .profile || settings.defaultHomeView == .events {
+            settings.defaultHomeView = .grid
+            try? modelContext.save()
+        }
+    }
+
+    private func onChangeHomeViewMode(_ newValue: HomeViewMode) {
+        let settings = DataService.getOrCreateSettings(context: modelContext)
+        let toSave = newValue == .profile ? HomeViewMode.grid : newValue
+        settings.defaultHomeView = toSave
+        try? modelContext.save()
+    }
+
+    @MainActor
+    private func removeFromAlbum(_ entry: PhotoEntry) {
+        guard let services = appServices else { return }
+        showRemoveConfirm = false
+        entry.isInHomeAlbum = false
+        try? modelContext.save()
+        services.photoImageLoader.clearCache()
+        entryPendingRemoval = nil
+    }
+
+    @MainActor
+    private func beginImportFlow() async {
+        guard let services = appServices else { return }
+        services.photoLibrary.refreshAuthorizationStatus()
+        switch services.photoLibrary.authorizationStatus {
+        case .authorized, .limited:
+            activeSheet = .photoPicker
+        case .notDetermined:
+            let ok = await services.photoLibrary.requestAuthorisationIfNeeded()
+            if ok {
+                activeSheet = .photoPicker
+            } else {
+                showPhotoDeniedAlert = true
+            }
+        case .denied, .restricted:
+            showPhotoDeniedAlert = true
+        @unknown default:
+            showPhotoDeniedAlert = true
+        }
+    }
+}
+
+private func photoSort(_ lhs: PhotoEntry, _ rhs: PhotoEntry) -> Bool {
+    switch (lhs.homeOrderIndex, rhs.homeOrderIndex) {
+    case let (l?, r?):
+        if l != r { return l < r }
+    case (nil, nil):
+        break
+    case (nil, _?):
+        return false
+    case (_?, nil):
+        return true
+    }
+    return lhs.capturedDate > rhs.capturedDate
+}
+
+private struct HomeScreenScaffold: View {
+    @Binding var homeViewMode: HomeViewMode
+    @Binding var activeSheet: HomeScreen.HomeSheet?
+    @Binding var showPhotoDeniedAlert: Bool
+    @Binding var entryPendingRemoval: PhotoEntry?
+    @Binding var showRemoveConfirm: Bool
+    @Binding var entryPendingEdit: PhotoEntry?
+    @Binding var showEditTags: Bool
+    @Binding var showReorderHome: Bool
+
+    let photos: [PhotoEntry]
+    let videoPhotos: [PhotoEntry]
+
+    let beginImportFlow: @MainActor () async -> Void
+    let removeFromAlbum: @MainActor (PhotoEntry) -> Void
+    let onAppearLoadDefaultViewMode: () -> Void
+    let onChangeHomeViewMode: (HomeViewMode) -> Void
+    let openSettings: () -> Void
+    let refreshAuthorizationStatus: () -> Void
+
+    var body: some View {
+        baseContent
+            .navigationDestination(for: UUID.self) { id in destinationView(for: id) }
+            .onAppear { onAppearLoadDefaultViewMode() }
+            .onChange(of: homeViewMode) { _, newValue in onChangeHomeViewMode(newValue) }
+            .sheet(item: $activeSheet) { sheet in activeSheetView(sheet) }
+            .sheet(isPresented: $showReorderHome) { reorderSheet }
+            .alert("Photos access needed", isPresented: $showPhotoDeniedAlert) { photosDeniedAlertActions } message: {
+                Text("Allow Photos access in Settings to add items from your library to Cavira.")
+            }
+            .confirmationDialog(
+                "Remove from Cavira?",
+                isPresented: $showRemoveConfirm,
+                titleVisibility: .visible,
+                presenting: entryPendingRemoval
+            ) { entry in
+                Button("Remove from album", role: .destructive) { removeFromAlbum(entry) }
+                Button("Cancel", role: .cancel) { entryPendingRemoval = nil }
+            } message: { _ in
+                Text("This only removes the item from your Cavira album. Nothing is deleted from Apple Photos.")
+            }
+            .sheet(isPresented: $showEditTags) { editTagsSheet }
+            .onChange(of: showRemoveConfirm) { _, isShowing in if !isShowing { entryPendingRemoval = nil } }
+            .onChange(of: showEditTags) { _, isShowing in if !isShowing { entryPendingEdit = nil } }
+    }
+
+    private var baseContent: some View {
         ZStack {
             homeContent
                 .id(homeViewMode)
@@ -60,136 +212,51 @@ struct HomeScreen: View {
         .background(CaviraTheme.backgroundPrimary)
         .navigationTitle("Cavira")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                Picker("Home layout", selection: $homeViewMode) {
-                    Text("Grid").tag(HomeViewMode.grid)
-                    Text("Timeline").tag(HomeViewMode.timeline)
-                    Text("Videos").tag(HomeViewMode.videos)
-                }
-                .pickerStyle(.segmented)
-                .accessibilityLabel("Home layout")
+        .toolbar { toolbarContent }
+    }
+
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .principal) {
+            Picker("Home layout", selection: $homeViewMode) {
+                Text("Grid").tag(HomeViewMode.grid)
+                Text("Timeline").tag(HomeViewMode.timeline)
+                Text("Videos").tag(HomeViewMode.videos)
             }
-            ToolbarItem(placement: .topBarLeading) {
-                Button {
-                    showReorderHome = true
-                } label: {
-                    Image(systemName: "arrow.up.arrow.down")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(CaviraTheme.textSecondary)
-                }
-                .accessibilityLabel("Reorder album")
-                .disabled(photos.count < 2)
+            .pickerStyle(.segmented)
+            .accessibilityLabel("Home layout")
+        }
+        ToolbarItem(placement: .topBarLeading) {
+            Button { showReorderHome = true } label: {
+                Image(systemName: "arrow.up.arrow.down.circle.fill")
+                    .font(.system(size: 22, weight: .semibold))
+                    .symbolRenderingMode(.palette)
+                    .foregroundStyle(CaviraTheme.accent, CaviraTheme.textTertiary)
             }
-            ToolbarItem(placement: .topBarTrailing) {
-                AlbumImportToolbarButton(accessibilityLabel: "Add to album") {
-                    Task { await beginImportFlow() }
-                }
+            .accessibilityLabel("Reorder album")
+            .disabled(photos.count < 2)
+        }
+        ToolbarItem(placement: .topBarTrailing) {
+            AlbumImportToolbarButton(accessibilityLabel: "Add to album") {
+                Task { await beginImportFlow() }
             }
-        }
-        // Resolve `UUID` as a `PhotoEntry` route.
-        .navigationDestination(for: UUID.self) { id in
-            if let entry = photos.first(where: { $0.id == id }) {
-                PhotoDetailView(entry: entry)
-            } else {
-                ContentUnavailableView(
-                    "Unavailable",
-                    systemImage: "photo",
-                    description: Text("This item is no longer in your album.")
-                )
-                .foregroundStyle(CaviraTheme.textSecondary)
-            }
-        }
-        .onAppear {
-            let settings = DataService.getOrCreateSettings(context: modelContext)
-            let mode: HomeViewMode
-            switch settings.defaultHomeView {
-            case .events:
-                mode = .grid
-            case .profile:
-                mode = .grid
-            default:
-                mode = settings.defaultHomeView
-            }
-            homeViewMode = mode
-            if settings.defaultHomeView == .profile || settings.defaultHomeView == .events {
-                settings.defaultHomeView = .grid
-                try? modelContext.save()
-            }
-        }
-        .onChange(of: homeViewMode) { _, newValue in
-            let settings = DataService.getOrCreateSettings(context: modelContext)
-            let toSave = newValue == .profile ? HomeViewMode.grid : newValue
-            settings.defaultHomeView = toSave
-            try? modelContext.save()
-        }
-        .sheet(item: $activeSheet) { sheet in
-            switch sheet {
-            case .photoPicker:
-                PhotoPickerRepresentable(
-                    isPresented: Binding(
-                        get: { activeSheet != nil },
-                        set: { if !$0 { activeSheet = nil } }
-                    )
-                ) { results in
-                    guard !results.isEmpty else { return }
-                    // Present options only after the picker has fully dismissed.
-                    activeSheet = .importOptions(results: results)
-                }
-                .ignoresSafeArea()
-            case .importOptions(let results):
-                ImportOptionsSheet(pickerResults: results)
-            }
-        }
-        .sheet(isPresented: $showReorderHome) {
-            HomeReorderView()
-                .presentationDetents([.fraction(0.85), .large])
-                .presentationDragIndicator(.visible)
-        }
-        .alert("Photos access needed", isPresented: $showPhotoDeniedAlert) {
-            Button("Open Settings") {
-                if let url = URL(string: UIApplication.openSettingsURLString) {
-                    openURL(url)
-                }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Allow Photos access in Settings to add items from your library to Cavira.")
-        }
-        .confirmationDialog(
-            "Remove from Cavira?",
-            isPresented: $showRemoveConfirm,
-            titleVisibility: .visible,
-            presenting: entryPendingRemoval
-        ) { entry in
-            Button("Remove from album", role: .destructive) {
-                removeFromAlbum(entry)
-            }
-            Button("Cancel", role: .cancel) {
-                entryPendingRemoval = nil
-            }
-        } message: { _ in
-            Text("This only removes the item from your Cavira album. Nothing is deleted from Apple Photos.")
-        }
-        .sheet(isPresented: $showEditTags) {
-            if let entryPendingEdit {
-                EditTagsSheet(entry: entryPendingEdit)
-                    .presentationDetents([.large])
-                    .presentationDragIndicator(.visible)
-            }
-        }
-        .onChange(of: showRemoveConfirm) { _, isShowing in
-            if !isShowing { entryPendingRemoval = nil }
-        }
-        .onChange(of: showEditTags) { _, isShowing in
-            if !isShowing { entryPendingEdit = nil }
-        }
-        .onChange(of: scenePhase) { _, phase in
-            guard phase == .active else { return }
-            appServices?.photoLibrary.refreshAuthorizationStatus()
         }
     }
-    
+
+    @ViewBuilder
+    private func destinationView(for id: UUID) -> some View {
+        if let entry = photos.first(where: { $0.id == id }) {
+            PhotoDetailView(entry: entry)
+        } else {
+            ContentUnavailableView(
+                "Unavailable",
+                systemImage: "photo",
+                description: Text("This item is no longer in your album.")
+            )
+            .foregroundStyle(CaviraTheme.textSecondary)
+        }
+    }
+
     @ViewBuilder
     private var homeContent: some View {
         switch homeViewMode {
@@ -234,6 +301,28 @@ struct HomeScreen: View {
         }
     }
 
+    private var reorderSheet: some View {
+        HomeReorderView()
+            .presentationDetents([.fraction(0.85), .large])
+            .presentationDragIndicator(.visible)
+    }
+
+    private var editTagsSheet: some View {
+        Group {
+            if let entryPendingEdit {
+                EditTagsSheet(entry: entryPendingEdit)
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var photosDeniedAlertActions: some View {
+        Button("Open Settings") { openSettings() }
+        Button("Cancel", role: .cancel) {}
+    }
+
     /// Empty-state title for the Videos segment when the filtered list is empty.
     private var videosOnlyEmptyTitle: String {
         if photos.isEmpty {
@@ -252,34 +341,25 @@ struct HomeScreen: View {
         }
     }
 
-    @MainActor
-    private func removeFromAlbum(_ entry: PhotoEntry) {
-        guard let services = appServices else { return }
-        showRemoveConfirm = false
-        entry.isInHomeAlbum = false
-        try? modelContext.save()
-        services.photoImageLoader.clearCache()
-        entryPendingRemoval = nil
-    }
-
-    @MainActor
-    private func beginImportFlow() async {
-        guard let services = appServices else { return }
-        services.photoLibrary.refreshAuthorizationStatus()
-        switch services.photoLibrary.authorizationStatus {
-        case .authorized, .limited:
-            activeSheet = .photoPicker
-        case .notDetermined:
-            let ok = await services.photoLibrary.requestAuthorisationIfNeeded()
-            if ok {
-                activeSheet = .photoPicker
-            } else {
-                showPhotoDeniedAlert = true
-            }
-        case .denied, .restricted:
-            showPhotoDeniedAlert = true
-        @unknown default:
-            showPhotoDeniedAlert = true
+    private func activeSheetView(_ sheet: HomeScreen.HomeSheet) -> some View {
+        // Delegate to the original implementation shape by re-creating the switch here.
+        // This reduces the generic depth of `HomeScreen.body` while keeping behavior identical.
+        switch sheet {
+        case .photoPicker:
+            return AnyView(
+                PhotoPickerRepresentable(
+                    isPresented: Binding(
+                        get: { activeSheet != nil },
+                        set: { if !$0 { activeSheet = nil } }
+                    )
+                ) { results in
+                    guard !results.isEmpty else { return }
+                    activeSheet = .importOptions(id: UUID(), results: results)
+                }
+                .ignoresSafeArea()
+            )
+        case .importOptions(_, let results):
+            return AnyView(ImportOptionsSheet(pickerResults: results))
         }
     }
 }

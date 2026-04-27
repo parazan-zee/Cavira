@@ -45,6 +45,7 @@ struct StorySaveView: View {
     @State private var titleText: String = ""
     @State private var storyDescription: String = ""
     @State private var storyDate: Date = .now
+    @State private var didAttemptSave = false
 
     @State private var locationQuery: String = ""
     @State private var appliedLocationTag: LocationTag?
@@ -59,6 +60,10 @@ struct StorySaveView: View {
     @State private var isSaving = false
     @State private var saveErrorMessage: String?
     @State private var showSaveErrorAlert = false
+
+    private var titleInvalid: Bool {
+        didAttemptSave && trimmedTitle.isEmpty
+    }
 
     var body: some View {
         VStack(spacing: CaviraTheme.Spacing.md) {
@@ -77,17 +82,14 @@ struct StorySaveView: View {
         }
         .background(CaviraTheme.backgroundPrimary)
         .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button("Back") {}
-                    .disabled(true)
-                    .hidden()
-            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button(isSaving ? "Saving…" : "Save") {
+                    didAttemptSave = true
+                    guard !titleInvalid else { return }
                     saveStory()
                 }
                 .foregroundStyle(CaviraTheme.accent)
-                .disabled(isSaving || trimmedTitle.isEmpty || draftSlides.isEmpty)
+                .disabled(isSaving || draftSlides.isEmpty)
             }
         }
         .onAppear {
@@ -129,14 +131,28 @@ struct StorySaveView: View {
             TextField("Story title", text: $titleText)
                 .textInputAutocapitalization(.sentences)
                 .foregroundStyle(CaviraTheme.textPrimary)
+                .overlay(
+                    RoundedRectangle(cornerRadius: CaviraTheme.Radius.medium, style: .continuous)
+                        .stroke(titleInvalid ? CaviraTheme.destructive : .clear, lineWidth: 1.5)
+                )
+
+            if titleInvalid {
+                Text("Title is required.")
+                    .font(CaviraTheme.Typography.caption)
+                    .foregroundStyle(CaviraTheme.destructive)
+            }
 
             Text("Give this story a short name so you can find it later.")
                 .font(CaviraTheme.Typography.caption)
                 .foregroundStyle(CaviraTheme.textTertiary)
                 .fixedSize(horizontal: false, vertical: true)
         } header: {
-            Text("Title")
-                .foregroundStyle(CaviraTheme.textSecondary)
+            HStack(spacing: 4) {
+                Text("Title")
+                    .foregroundStyle(CaviraTheme.textSecondary)
+                Text("*")
+                    .foregroundStyle(CaviraTheme.destructive)
+            }
         }
     }
 

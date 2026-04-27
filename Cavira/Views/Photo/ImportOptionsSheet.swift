@@ -204,9 +204,17 @@ struct ImportOptionsSheet: View {
                             .textInputAutocapitalization(.words)
                             .autocorrectionDisabled()
                             .foregroundStyle(CaviraTheme.textPrimary)
-                        Button("Add") { addFreeTextPerson() }
-                            .foregroundStyle(CaviraTheme.accent)
-                            .disabled(freeTextPerson.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                            .submitLabel(.done)
+                            .onSubmit { addFreeTextPerson() }
+
+                        Button {
+                            addFreeTextPerson()
+                        } label: {
+                            Text("Add person")
+                        }
+                        .buttonStyle(.borderless)
+                        .foregroundStyle(CaviraTheme.accent)
+                        .disabled(freeTextPerson.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
                 } header: {
                     Text("People")

@@ -11,15 +11,16 @@ Use this as the **inventory of shipped behaviour** before starting **Phase 7+**.
 
 | Area | In repo / working |
 |------|-------------------|
-| **Models** | SwiftData: `PhotoEntry` (incl. `mediaKind`, `isLivePhoto`, `localIdentifier`, **`isInHomeAlbum`**), `Story` (incl. **title, date, description, location, people, cover**), `StorySlide`, tags, `AppSettings` (`defaultHomeView`, `appearanceMode`, `defaultStorageMode`, **`themePalette?`** (optional for migration safety), legacy migration flag), `PhotoAssetKind`, `HomeViewMode` (`.grid`, `.timeline`, `.videos`, legacy-only cases kept for migration). **Legacy in repo (to remove later):** `Event` + any `PhotoEntry.event` / `Story.event` wiring (see **Decision: Retire legacy second tab concept** below). |
+| **Models** | SwiftData: `PhotoEntry` (incl. `mediaKind`, `isLivePhoto`, `localIdentifier`, **`isInHomeAlbum`**), `Story` (incl. **title, date, description, location, people, cover**), `StorySlide`, tags, `AppSettings` (`defaultHomeView`, `appearanceMode`, `defaultStorageMode`, **`themePalette?`** (optional for migration safety), legacy migration flag), `PhotoAssetKind`, `HomeViewMode` (`.grid`, `.timeline`, `.videos`, legacy-only cases kept for migration). **Legacy in repo (intentional, migration-only):** `Event` + any `PhotoEntry.event` / `Story.event` wiring exists for historical data compatibility; product behaviour is Stories-first (see **Decision: Retire legacy second tab concept** below). |
 | **Theme** | **`Theme/CaviraTheme.swift`** supports multiple palettes via **`ThemePalette`** (colors only; layout unchanged). **Default = Ranger.** User selects under **Settings → Display → Theme** (opens **ThemePickerSheet** with swatches). **UIKit chrome** is applied via **`CaviraTheme.applyGlobalChrome()`** (called at launch in `CaviraApp` and re-applied when theme changes). `RootView` uses `.preferredColorScheme(...)` based on palette (Cloud defaults to light; others default to dark). |
 | **Services** | `AppServices` + `Environment` (`AppServices?`); `PhotoLibraryService` (auth, `fetchAllAssets`, `assets(onDay:)`, recap helpers, **`assetCountsByDayInMonth`**, `asset(for:)`); `PhotoImageLoader`; `PhotoImportService` (reference import, dedupe by `localIdentifier`, **`importLocalIdentifiers`**); `PhotoStorageServing` / `NoOpPhotoStorage`; `LocationSearchService`, `ContactsService`, `DataService` (incl. one-time legacy migration into Stories). |
 | **Shell** | `RootView` `TabView` (5 tabs); launch **`AppSettings`** bootstrap + **Photos** `requestAuthorization` task; `HomeTab` … `SettingsTab` each **one `NavigationStack`**. |
-| **Home** | Segmented **Grid \| Timeline \| Videos** only. Home lists only `PhotoEntry.isInHomeAlbum == true`. **Long press context menu:** **Edit** (opens `EditTagsSheet`) + **Remove from album** (toggles `isInHomeAlbum = false`, Cavira-only). **`AlbumImportToolbarButton`** on all segments; **`ImportOptionsSheet`** (Home Add form) is album-only; **single-item imports require a Title** (shown as **Title*** with red validation on Add). **Duplicate feedback:** if the user picks only items already in the Home album (`isInHomeAlbum == true`), show a short **“Already in your album”** alert and dismiss (duplicate detection is computed from pre-import Home membership to avoid false positives). `navigationDestination(for: UUID.self)` resolves **photo** for `PhotoDetailView`. |
+| **Home** | Segmented **Grid \| Timeline \| Videos** only. Home lists only `PhotoEntry.isInHomeAlbum == true`. **Long press context menu:** **Edit** (opens `EditTagsSheet`) + **Remove from album** (toggles `isInHomeAlbum = false`, Cavira-only). **`AlbumImportToolbarButton`** on all segments; **`ImportOptionsSheet`** (Home Add form) is album-only; **single-item imports require a Title** (shown as **Title*** with red validation on Add). **Duplicate feedback:** if the user picks only items already in the Home album (`isInHomeAlbum == true`), show a short **“Already in your album”** alert and dismiss (duplicate detection is computed from pre-import Home membership to avoid false positives). **Reorder:** “Reorder album” sheet writes `PhotoEntry.homeOrderIndex` and Home sorts by `homeOrderIndex` first, then `capturedDate`. `navigationDestination(for: UUID.self)` resolves **photo** for `PhotoDetailView`. |
 | **Photo detail** | `PhotoDetailView` shows a trailing **menu**: Edit tags, place people tags, **Share**, Remove from album. Share uses the native iOS share sheet (`UIActivityViewController`) and exports the underlying Photos asset resource to a temporary file when possible. |
 | **Photo / import UI** | `Views/Photo/` picker + import sheet + detail; `Views/Components/` thumbnails + empty state; `Views/Home/` grid + timeline + `HomeScreen`. |
 | **Calendar tab** | **`LibraryMonthCalendarView`** (counts + **limited / not-determined** footnotes); **month title** opens **“Go to month”** sheet (**graphical `DatePicker`** + **Jump to today’s month** + **Go** / **Cancel**); prev/next chevrons unchanged; tapping a day opens a **day grid** of that day’s Photos assets (photos+videos, read-only from `PHAsset`). Tapping an item opens an **Options** sheet (**full height**) that reuses shared flows: **Add to Home** presents **the same `ImportOptionsSheet`** used on Home; **Add to Story** presents **the same `StoryBuilderView`** used on Stories (scoped to that day’s captures). **Below the calendar:** a **Recap** module (“On this date” / “This month”) that auto-flips through past photos (fade every ~5s). `scenePhase` .active and `.task(id: displayedMonth)` refresh month counts after jumps. |
-| **Placeholders** | Stories, Search, Settings bodies. |
+| **Search** | Search the Cavira album (`PhotoEntry.isInHomeAlbum == true`) by **title, notes, location, and people** with **Location / People / Date** filter chips and **Newest/Oldest** sort. UI uses a **custom always-visible search bar** (not SwiftUI `.searchable`) with an always-visible **X reset** button that clears query + filters + sort. |
+| **Settings** | Settings & storage + display defaults + theme palettes. |
 
 **Schema changes:** adding SwiftData properties historically required **simulator delete app** or a migration; keep a **VersionedSchema** / migration story in mind before App Store.
 
@@ -655,6 +656,8 @@ Use a small coordinator pattern; dismiss picker after confirm.
 
 **Implementation note (sheet stability):** When the user flow is **Picker → ImportOptionsSheet**, present them as a **single sheet state machine** (e.g. an enum + `.sheet(item:)`) rather than two separate `.sheet(isPresented:)` modifiers. This avoids first-run sheet races where `ImportOptionsSheet` may briefly render with the wrong `pickerResults` or dismiss unexpectedly.
 
+**Implementation note (sheet identity):** If you use `.sheet(item:)` with an enum-backed item, keep the `id` **stable for the lifetime of the presented sheet**. A computed `id` like `UUID()` on every render will cause the sheet (and its internal `@State`, like free-text people tags) to reset on any parent re-render.
+
 ## Views/Photo/ImportOptionsSheet.swift
 After the user picks assets, show this sheet before writing SwiftData:
 
@@ -1049,7 +1052,9 @@ Build the Search feature. Users can find photos by location, person, custom tag,
 ## Views/Search/SearchView.swift — full implementation
 
 Layout:
-- Search bar at top (SwiftUI searchable)
+- Search bar at top (**custom**, always visible; **not** SwiftUI `.searchable`) with:
+  - Inline clear for just the query text
+  - A trailing **X** button that resets **query + filters + sort**
 - Filter chips row below search bar: "Location" | "People" | "Date" | "Story" (tappable)
 - Sorting: toggle **Newest** / **Oldest**
 - Results grid below (same PhotoThumbnailView 3-column grid)
@@ -1107,6 +1112,8 @@ Search should feel instant for typical library sizes (up to ~2000 photos). No lo
 ### Goal: Users can create Instagram-style Stories (photos + videos) that play like a slideshow of a single memory (holiday / day out / graduation) without creating a separate media store.
 
 **List UX (current implementation):** **StoriesListView** is a **vertical scroll** of **110pt-tall horizontal cards** using `StoryCardView` (cover on the left, metadata on the right), split into **Pinned** and **Recent** sections when pinned stories exist. Toolbar `+` creates a new story; tapping a card opens `StoryViewerView`. Each card has an anchored **actions menu** (iOS-style) on a **pencil-circle** button with a larger hit target (Edit / Pin / Delete).
+
+**Details UX (current implementation):** Story details (`StorySaveView`) shows **Title*** as required and uses **inline red validation** (“Title is required.”) when the user taps **Save** without a title.
 
 **Product decisions (locked for v1):**
 - Stories are the only narrative/grouping layer in v1.
@@ -1340,7 +1347,7 @@ In v1, `AppSettings.defaultStorageMode` should remain `.reference` (or the UI om
 ---
 
 # PHASE 12 — Polish, Edge Cases & Final QA
-**Build tracker:** 🚧 In progress (see 12.x tracker below)
+**Build tracker:** ✅ Complete (see 12.x tracker below)
 
 ### Goal: App is stable, handles edge cases, and feels complete for v1. **Optional** product/engineering items that were explicitly deferred from v1: **appearance** (light / system) and **dark-mode tint** fine-tuning for Ranger, plus an unlikely migration from **UIKit global appearances** to **SwiftUI-only** tab/nav chrome — all **only** if you choose to schedule them here.
 
@@ -1499,7 +1506,7 @@ In PhotoImageLoader, if a PHAsset referenced by localIdentifier no longer exists
 - Calendar list / month placeholder: copy matches **Calendar** tab intent (month + counts in Phase 6).
 - StoriesListView: "No stories yet. Create your first story."
 - SearchView (no results): "No photos match your search."
-- ProfileView (no pins): nudge message "Pin stories to see them here."
+// Removed: ProfileView is out of scope for v1.
 
 ## Loading states:
 - PhotoThumbnailView: show a grey placeholder during async load (already implemented, confirm it's smooth)
@@ -1547,7 +1554,7 @@ Review the entire app for any obvious UI inconsistencies — font sizes, spacing
 - [ ] App reads correctly in the **shipped Ranger-dark** configuration; if optional **Phase 12** appearance work is **not** done, confirm **`.preferredColorScheme(.dark)`** + **`CaviraTheme`** still hold across all flows
 - [ ] All sheets have drag handles and can be dismissed
 - [ ] No memory warnings during normal use
-- [ ] App passes a full end-to-end walkthrough: import → tag → create event → build story → view on profile
+- [ ] App passes a full end-to-end walkthrough: import → tag → build story → search → settings (no Events, no ProfileView)
 
 ---
 

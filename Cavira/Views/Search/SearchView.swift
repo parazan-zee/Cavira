@@ -7,7 +7,6 @@ struct SearchView: View {
     @Query(sort: \PersonTag.displayName, order: .forward) private var people: [PersonTag]
 
     @State private var query = ""
-    @State private var isSearchPresented = true
 
     @State private var selectedLocationID: UUID?
     @State private var selectedPersonID: UUID?
@@ -27,6 +26,17 @@ struct SearchView: View {
     }
 
     @State private var sortOrder: SortOrder = .newestFirst
+
+    private var hasActiveFilters: Bool {
+        selectedLocationID != nil
+            || selectedPersonID != nil
+            || dateStart != nil
+            || dateEnd != nil
+    }
+
+    private var hasAnySearchState: Bool {
+        hasActiveFilters || !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || sortOrder != .newestFirst
+    }
 
     private var filtered: [PhotoEntry] {
         var rows = photos
@@ -70,9 +80,11 @@ struct SearchView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: CaviraTheme.Spacing.md) {
+            searchHeader
+                .padding(.horizontal, CaviraTheme.Spacing.md)
+
             filterRow
                 .padding(.horizontal, CaviraTheme.Spacing.md)
-                .padding(.top, CaviraTheme.Spacing.sm)
 
             HStack {
                 Text("\(filtered.count) \(filtered.count == 1 ? "result" : "results")")
@@ -126,22 +138,6 @@ struct SearchView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(CaviraTheme.backgroundPrimary, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
-        .searchable(
-            text: $query,
-            isPresented: $isSearchPresented,
-            placement: .navigationBarDrawer(displayMode: .always),
-            prompt: "Search title, people, places…"
-        )
-        .onAppear {
-            // Keep the search bar visible by default, without forcing keyboard focus (avoids title/toolbar animation).
-            isSearchPresented = true
-        }
-        .onChange(of: query) { _, newValue in
-            // Treat the built-in clear (X) as “reset search”.
-            if newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                clearFilters()
-            }
-        }
         .sheet(isPresented: $showLocationPicker) { locationPickerSheet }
         .sheet(isPresented: $showPeoplePicker) { peoplePickerSheet }
         .sheet(isPresented: $showDatePicker) { dateRangeSheet }
@@ -179,11 +175,58 @@ struct SearchView: View {
         }
     }
 
+    private var searchHeader: some View {
+        HStack(spacing: CaviraTheme.Spacing.sm) {
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(CaviraTheme.textTertiary)
+
+                TextField("Search title, people, places…", text: $query)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .foregroundStyle(CaviraTheme.textPrimary)
+
+                if !query.isEmpty {
+                    Button {
+                        query = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(CaviraTheme.textTertiary)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Clear search text")
+                }
+            }
+            .padding(.vertical, 10)
+            .padding(.horizontal, 12)
+            .background(CaviraTheme.surfaceCard.opacity(0.6), in: Capsule())
+
+            Button {
+                clearAll()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(CaviraTheme.textPrimary)
+                    .frame(width: 40, height: 40)
+                    .background(CaviraTheme.surfaceCard.opacity(0.6), in: Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Reset search and filters")
+            .opacity(hasAnySearchState ? 1 : 0.65)
+        }
+    }
+
     private func clearFilters() {
         selectedLocationID = nil
         selectedPersonID = nil
         dateStart = nil
         dateEnd = nil
+    }
+
+    private func clearAll() {
+        query = ""
+        clearFilters()
+        sortOrder = .newestFirst
     }
 
     private func filterChip(label: String, systemImage: String, isActive: Bool, action: @escaping () -> Void) -> some View {
