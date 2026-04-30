@@ -6,7 +6,7 @@ struct HomeReorderView: View {
     @Environment(\.modelContext) private var modelContext
 
     @Query(
-        filter: #Predicate<PhotoEntry> { $0.isInHomeAlbum == true && $0.mediaKind == .image }
+        filter: #Predicate<PhotoEntry> { $0.isInHomeAlbum == true && $0.mediaKind == PhotoAssetKind.image }
     )
     private var queriedPhotos: [PhotoEntry]
 
