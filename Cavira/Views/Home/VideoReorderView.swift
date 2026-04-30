@@ -1,27 +1,25 @@
 import SwiftData
 import SwiftUI
 
-struct HomeReorderView: View {
+struct VideoReorderView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
 
     @Query(
-        filter: #Predicate<PhotoEntry> { $0.isInHomeAlbum == true && $0.mediaKind == .image }
+        filter: #Predicate<PhotoEntry> { $0.isInHomeAlbum == true && $0.mediaKind == .video }
     )
-    private var queriedPhotos: [PhotoEntry]
+    private var queriedVideos: [PhotoEntry]
 
     @State private var local: [PhotoEntry] = []
     @State private var hasNormalized = false
 
-    // Explicit initializer prevents Swift from synthesizing a private memberwise init
-    // (which can happen when stored properties are `private`, like `photos`).
     init() {}
 
     var body: some View {
         NavigationStack {
-            HomeReorderScreen(
+            VideoReorderScreen(
                 local: $local,
-                photos: photos,
+                videos: videos,
                 onDone: { dismiss() },
                 onMove: move(from:to:),
                 onNormalize: normalizeIfNeeded
@@ -29,24 +27,23 @@ struct HomeReorderView: View {
         }
     }
 
-    private var photos: [PhotoEntry] {
-        queriedPhotos.sorted(by: photoSort)
+    private var videos: [PhotoEntry] {
+        queriedVideos.sorted(by: videoSort)
     }
 
-    private var photoIDs: [UUID] {
-        photos.map(\.id)
+    private var videoIDs: [UUID] {
+        videos.map(\.id)
     }
 
     private func normalizeIfNeeded() {
         guard !hasNormalized else {
-            if local.isEmpty { local = photos }
+            if local.isEmpty { local = videos }
             return
         }
-        local = photos
-        // If any are nil, assign indices based on current order.
-        if local.contains(where: { $0.homeOrderIndex == nil }) {
+        local = videos
+        if local.contains(where: { $0.videoOrderIndex == nil }) {
             for (idx, entry) in local.enumerated() {
-                entry.homeOrderIndex = idx
+                entry.videoOrderIndex = idx
             }
             try? modelContext.save()
         }
@@ -56,25 +53,25 @@ struct HomeReorderView: View {
     private func move(from source: IndexSet, to destination: Int) {
         local.move(fromOffsets: source, toOffset: destination)
         for (idx, entry) in local.enumerated() {
-            entry.homeOrderIndex = idx
+            entry.videoOrderIndex = idx
         }
         try? modelContext.save()
     }
 }
 
-private struct HomeReorderScreen: View {
+private struct VideoReorderScreen: View {
     @Binding var local: [PhotoEntry]
-    let photos: [PhotoEntry]
+    let videos: [PhotoEntry]
     let onDone: () -> Void
     let onMove: (IndexSet, Int) -> Void
     let onNormalize: () -> Void
 
-    private var photoIDs: [UUID] { photos.map(\.id) }
+    private var videoIDs: [UUID] { videos.map(\.id) }
 
     var body: some View {
         List {
             ForEach(local, id: \.id) { entry in
-                HomeReorderRow(entry: entry)
+                VideoReorderRow(entry: entry)
                     .listRowBackground(CaviraTheme.surfaceCard)
             }
             .onMove(perform: onMove)
@@ -82,14 +79,14 @@ private struct HomeReorderScreen: View {
         .environment(\.editMode, .constant(.active))
         .scrollContentBackground(.hidden)
         .background(CaviraTheme.backgroundSecondary)
-        .navigationTitle("Reorder album")
+        .navigationTitle("Reorder videos")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(CaviraTheme.backgroundPrimary, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbar { toolbarContent }
         .onAppear { onNormalize() }
-        .onChange(of: photoIDs) { _, _ in
-            local = photos
+        .onChange(of: videoIDs) { _, _ in
+            local = videos
             onNormalize()
         }
     }
@@ -108,7 +105,7 @@ private struct HomeReorderScreen: View {
     }
 }
 
-private struct HomeReorderRow: View {
+private struct VideoReorderRow: View {
     let entry: PhotoEntry
 
     var body: some View {
@@ -118,41 +115,26 @@ private struct HomeReorderRow: View {
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
 
             VStack(alignment: .leading, spacing: 2) {
-                titleLine
-                kindLine
+                if let title = entry.title, !title.isEmpty {
+                    Text(title)
+                        .font(CaviraTheme.Typography.body.weight(.semibold))
+                        .foregroundStyle(CaviraTheme.textPrimary)
+                } else {
+                    Text(entry.capturedDate.formatted(date: .abbreviated, time: .omitted))
+                        .font(CaviraTheme.Typography.body.weight(.semibold))
+                        .foregroundStyle(CaviraTheme.textPrimary)
+                }
+                Text("Video")
+                    .font(CaviraTheme.Typography.caption)
+                    .foregroundStyle(CaviraTheme.textTertiary)
             }
             Spacer(minLength: 0)
         }
     }
-
-    @ViewBuilder
-    private var titleLine: some View {
-        if let title = entry.title, !title.isEmpty {
-            Text(title)
-                .font(CaviraTheme.Typography.body.weight(.semibold))
-                .foregroundStyle(CaviraTheme.textPrimary)
-        } else {
-            Text(entry.capturedDate.formatted(date: .abbreviated, time: .omitted))
-                .font(CaviraTheme.Typography.body.weight(.semibold))
-                .foregroundStyle(CaviraTheme.textPrimary)
-        }
-    }
-
-    private var kindLine: some View {
-        Text(kindLabel)
-            .font(CaviraTheme.Typography.caption)
-            .foregroundStyle(CaviraTheme.textTertiary)
-    }
-
-    private var kindLabel: String {
-        if entry.mediaKind == .video { return "Video" }
-        if entry.isLivePhoto { return "Live Photo" }
-        return "Photo"
-    }
 }
 
-private func photoSort(_ lhs: PhotoEntry, _ rhs: PhotoEntry) -> Bool {
-    switch (lhs.homeOrderIndex, rhs.homeOrderIndex) {
+private func videoSort(_ lhs: PhotoEntry, _ rhs: PhotoEntry) -> Bool {
+    switch (lhs.videoOrderIndex, rhs.videoOrderIndex) {
     case let (l?, r?):
         if l != r { return l < r }
     case (nil, nil):
@@ -167,7 +149,7 @@ private func photoSort(_ lhs: PhotoEntry, _ rhs: PhotoEntry) -> Bool {
 
 #Preview {
     NavigationStack {
-        HomeReorderView()
+        VideoReorderView()
     }
     .caviraPreviewShell()
 }

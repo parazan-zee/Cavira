@@ -3,9 +3,16 @@ import PhotosUI
 import SwiftUI
 import UIKit
 
-/// Wraps `PHPickerViewController` for images, Live Photos, and videos (reference import only).
+/// Wraps `PHPickerViewController` for Photos library picking (reference import only).
 struct PhotoPickerRepresentable: UIViewControllerRepresentable {
+    enum MediaMode: Equatable {
+        case photosOnly
+        case videosOnly
+        case photosAndVideos
+    }
+
     @Binding var isPresented: Bool
+    var mediaMode: MediaMode = .photosAndVideos
     let onComplete: ([PHPickerResult]) -> Void
 
     func makeCoordinator() -> Coordinator {
@@ -14,7 +21,14 @@ struct PhotoPickerRepresentable: UIViewControllerRepresentable {
 
     func makeUIViewController(context: Context) -> PHPickerViewController {
         var configuration = PHPickerConfiguration(photoLibrary: .shared())
-        configuration.filter = .any(of: [.images, .livePhotos, .videos])
+        switch mediaMode {
+        case .photosOnly:
+            configuration.filter = .any(of: [.images, .livePhotos])
+        case .videosOnly:
+            configuration.filter = .videos
+        case .photosAndVideos:
+            configuration.filter = .any(of: [.images, .livePhotos, .videos])
+        }
         configuration.selectionLimit = 0
         configuration.preferredAssetRepresentationMode = .current
         let picker = PHPickerViewController(configuration: configuration)

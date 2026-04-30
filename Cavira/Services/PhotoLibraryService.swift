@@ -40,15 +40,11 @@ final class PhotoLibraryService {
         }
     }
 
-    /// Images and videos, newest first (creation date descending). Used for Calendar-style tooling.
+    /// Images only, newest first (creation date descending).
     func fetchAllAssets() -> PHFetchResult<PHAsset> {
         let options = PHFetchOptions()
         options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
-        options.predicate = NSPredicate(
-            format: "mediaType == %d OR mediaType == %d",
-            PHAssetMediaType.image.rawValue,
-            PHAssetMediaType.video.rawValue
-        )
+        options.predicate = NSPredicate(format: "mediaType == %d", PHAssetMediaType.image.rawValue)
         return PHAsset.fetchAssets(with: options)
     }
 
@@ -57,14 +53,13 @@ final class PhotoLibraryService {
         return results.firstObject
     }
 
-    /// Counts of **image + video** assets grouped by **calendar day of month** (1…31) for the month that contains `monthContaining` (uses `creationDate` in `calendar`’s time zone).
+    /// Counts of **image** assets grouped by **calendar day of month** (1…31) for the month that contains `monthContaining` (uses `creationDate` in `calendar`’s time zone).
     func assetCountsByDayInMonth(containing monthContaining: Date, calendar: Calendar = .current) -> [Int: Int] {
         guard let interval = calendar.dateInterval(of: .month, for: monthContaining) else { return [:] }
         let options = PHFetchOptions()
         options.predicate = NSPredicate(
-            format: "(mediaType == %d OR mediaType == %d) AND (creationDate >= %@ AND creationDate < %@)",
+            format: "(mediaType == %d) AND (creationDate >= %@ AND creationDate < %@)",
             PHAssetMediaType.image.rawValue,
-            PHAssetMediaType.video.rawValue,
             interval.start as NSDate,
             interval.end as NSDate
         )
@@ -78,7 +73,7 @@ final class PhotoLibraryService {
         return counts
     }
 
-    /// All image+video assets captured on the given calendar day (local time), newest first.
+    /// All image assets captured on the given calendar day (local time), newest first.
     func assets(onDay day: Date, calendar: Calendar = .current) -> [PHAsset] {
         guard let start = calendar.startOfDay(for: day) as Date?,
               let end = calendar.date(byAdding: .day, value: 1, to: start)
@@ -87,9 +82,8 @@ final class PhotoLibraryService {
         let options = PHFetchOptions()
         options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
         options.predicate = NSPredicate(
-            format: "(mediaType == %d OR mediaType == %d) AND (creationDate >= %@ AND creationDate < %@)",
+            format: "(mediaType == %d) AND (creationDate >= %@ AND creationDate < %@)",
             PHAssetMediaType.image.rawValue,
-            PHAssetMediaType.video.rawValue,
             start as NSDate,
             end as NSDate
         )
@@ -102,7 +96,7 @@ final class PhotoLibraryService {
         return assets
     }
 
-    /// Best-effort recap: assets captured on the same **month/day** in previous years (newest first).
+    /// Best-effort recap: image assets captured on the same **month/day** in previous years (newest first).
     /// `yearsBack` bounds the search to avoid too many fetches.
     func recapAssetsOnThisDate(referenceDay: Date, yearsBack: Int = 10, calendar: Calendar = .current, limit: Int = 25) -> [PHAsset] {
         let comps = calendar.dateComponents([.month, .day, .year], from: referenceDay)
@@ -118,9 +112,8 @@ final class PhotoLibraryService {
             options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
             options.fetchLimit = max(0, limit - collected.count)
             options.predicate = NSPredicate(
-                format: "(mediaType == %d OR mediaType == %d) AND (creationDate >= %@ AND creationDate < %@)",
+                format: "(mediaType == %d) AND (creationDate >= %@ AND creationDate < %@)",
                 PHAssetMediaType.image.rawValue,
-                PHAssetMediaType.video.rawValue,
                 calendar.startOfDay(for: start) as NSDate,
                 end as NSDate
             )
@@ -134,7 +127,7 @@ final class PhotoLibraryService {
         return collected
     }
 
-    /// Best-effort recap fallback: assets captured in the same **month** across previous years.
+    /// Best-effort recap fallback: image assets captured in the same **month** across previous years.
     func recapAssetsThisMonth(referenceDay: Date, yearsBack: Int = 10, calendar: Calendar = .current, limit: Int = 25) -> [PHAsset] {
         let comps = calendar.dateComponents([.month, .year], from: referenceDay)
         guard let month = comps.month, let year = comps.year else { return [] }
@@ -149,9 +142,8 @@ final class PhotoLibraryService {
             options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
             options.fetchLimit = max(0, limit - collected.count)
             options.predicate = NSPredicate(
-                format: "(mediaType == %d OR mediaType == %d) AND (creationDate >= %@ AND creationDate < %@)",
+                format: "(mediaType == %d) AND (creationDate >= %@ AND creationDate < %@)",
                 PHAssetMediaType.image.rawValue,
-                PHAssetMediaType.video.rawValue,
                 interval.start as NSDate,
                 interval.end as NSDate
             )

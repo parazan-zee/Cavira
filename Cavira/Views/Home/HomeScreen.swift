@@ -15,13 +15,20 @@ struct HomeScreen: View {
     )
     private var queriedPhotos: [PhotoEntry]
 
+    /// All entries in the curated Home album (photos + videos).
+    private var albumEntries: [PhotoEntry] {
+        queriedPhotos.sorted(by: albumSort)
+    }
+
     private var photos: [PhotoEntry] {
-        queriedPhotos.sorted(by: photoSort)
+        albumEntries.filter { $0.mediaKind == .image }
     }
 
     /// Album entries with `mediaKind == .video` (Videos segment only).
     private var videoPhotos: [PhotoEntry] {
-        photos.filter { $0.mediaKind == .video }
+        albumEntries
+            .filter { $0.mediaKind == .video }
+            .sorted(by: videoSort)
     }
 
     @State private var homeViewMode: HomeViewMode = .grid
@@ -48,7 +55,8 @@ struct HomeScreen: View {
     @State private var showRemoveConfirm = false
     @State private var entryPendingEdit: PhotoEntry?
     @State private var showEditTags = false
-    @State private var showReorderHome = false
+    @State private var showReorderPhotos = false
+    @State private var showReorderVideos = false
 
     // Prevent synthesized private memberwise init from `private` stored properties (e.g. `@Query photos`).
     init() {}
@@ -62,13 +70,16 @@ struct HomeScreen: View {
             showRemoveConfirm: $showRemoveConfirm,
             entryPendingEdit: $entryPendingEdit,
             showEditTags: $showEditTags,
-            showReorderHome: $showReorderHome,
+            showReorderPhotos: $showReorderPhotos,
+            showReorderVideos: $showReorderVideos,
             photos: photos,
             videoPhotos: videoPhotos,
+            albumEntries: albumEntries,
             beginImportFlow: beginImportFlow,
             removeFromAlbum: removeFromAlbum,
             onAppearLoadDefaultViewMode: onAppearLoadDefaultViewMode,
             onChangeHomeViewMode: onChangeHomeViewMode,
+            onTapReorder: onTapReorder,
             openSettings: openSettings,
             refreshAuthorizationStatus: refreshAuthorizationStatus
         )
@@ -139,10 +150,32 @@ struct HomeScreen: View {
             showPhotoDeniedAlert = true
         }
     }
+
+    private func onTapReorder() {
+        if homeViewMode == .videos {
+            showReorderVideos = true
+        } else {
+            showReorderPhotos = true
+        }
+    }
 }
 
-private func photoSort(_ lhs: PhotoEntry, _ rhs: PhotoEntry) -> Bool {
+private func albumSort(_ lhs: PhotoEntry, _ rhs: PhotoEntry) -> Bool {
     switch (lhs.homeOrderIndex, rhs.homeOrderIndex) {
+    case let (l?, r?):
+        if l != r { return l < r }
+    case (nil, nil):
+        break
+    case (nil, _?):
+        return false
+    case (_?, nil):
+        return true
+    }
+    return lhs.capturedDate > rhs.capturedDate
+}
+
+private func videoSort(_ lhs: PhotoEntry, _ rhs: PhotoEntry) -> Bool {
+    switch (lhs.videoOrderIndex, rhs.videoOrderIndex) {
     case let (l?, r?):
         if l != r { return l < r }
     case (nil, nil):
@@ -163,15 +196,18 @@ private struct HomeScreenScaffold: View {
     @Binding var showRemoveConfirm: Bool
     @Binding var entryPendingEdit: PhotoEntry?
     @Binding var showEditTags: Bool
-    @Binding var showReorderHome: Bool
+    @Binding var showReorderPhotos: Bool
+    @Binding var showReorderVideos: Bool
 
     let photos: [PhotoEntry]
     let videoPhotos: [PhotoEntry]
+    let albumEntries: [PhotoEntry]
 
     let beginImportFlow: @MainActor () async -> Void
     let removeFromAlbum: @MainActor (PhotoEntry) -> Void
     let onAppearLoadDefaultViewMode: () -> Void
     let onChangeHomeViewMode: (HomeViewMode) -> Void
+    let onTapReorder: () -> Void
     let openSettings: () -> Void
     let refreshAuthorizationStatus: () -> Void
 
@@ -181,7 +217,8 @@ private struct HomeScreenScaffold: View {
             .onAppear { onAppearLoadDefaultViewMode() }
             .onChange(of: homeViewMode) { _, newValue in onChangeHomeViewMode(newValue) }
             .sheet(item: $activeSheet) { sheet in activeSheetView(sheet) }
-            .sheet(isPresented: $showReorderHome) { reorderSheet }
+            .sheet(isPresented: $showReorderPhotos) { reorderPhotosSheet }
+            .sheet(isPresented: $showReorderVideos) { reorderVideosSheet }
             .alert("Photos access needed", isPresented: $showPhotoDeniedAlert) { photosDeniedAlertActions } message: {
                 Text("Allow Photos access in Settings to add items from your library to Cavira.")
             }
@@ -227,14 +264,14 @@ private struct HomeScreenScaffold: View {
             .accessibilityLabel("Home layout")
         }
         ToolbarItem(placement: .topBarLeading) {
-            Button { showReorderHome = true } label: {
+            Button { onTapReorder() } label: {
                 Image(systemName: "arrow.up.arrow.down.circle.fill")
                     .font(.system(size: 22, weight: .semibold))
                     .symbolRenderingMode(.palette)
                     .foregroundStyle(CaviraTheme.accent, CaviraTheme.textTertiary)
             }
             .accessibilityLabel("Reorder album")
-            .disabled(photos.count < 2)
+            .disabled((homeViewMode == .videos ? videoPhotos.count : photos.count) < 2)
         }
         ToolbarItem(placement: .topBarTrailing) {
             AlbumImportToolbarButton(accessibilityLabel: "Add to album") {
@@ -245,7 +282,7 @@ private struct HomeScreenScaffold: View {
 
     @ViewBuilder
     private func destinationView(for id: UUID) -> some View {
-        if let entry = photos.first(where: { $0.id == id }) {
+        if let entry = albumEntries.first(where: { $0.id == id }) {
             PhotoDetailView(entry: entry)
         } else {
             ContentUnavailableView(
@@ -301,8 +338,14 @@ private struct HomeScreenScaffold: View {
         }
     }
 
-    private var reorderSheet: some View {
+    private var reorderPhotosSheet: some View {
         HomeReorderView()
+            .presentationDetents([.fraction(0.85), .large])
+            .presentationDragIndicator(.visible)
+    }
+
+    private var reorderVideosSheet: some View {
+        VideoReorderView()
             .presentationDetents([.fraction(0.85), .large])
             .presentationDragIndicator(.visible)
     }
@@ -337,7 +380,7 @@ private struct HomeScreenScaffold: View {
         if photos.isEmpty {
             "Your album stays in Apple Photos; Cavira is where you curate what appears here."
         } else {
-            "Use + to add videos from your library, or open Grid or Timeline to browse photos and Live Photos."
+            "Use + to add videos from your library, or open Grid or Timeline to browse your photos."
         }
     }
 
@@ -352,6 +395,8 @@ private struct HomeScreenScaffold: View {
                         get: { activeSheet != nil },
                         set: { if !$0 { activeSheet = nil } }
                     )
+                    ,
+                    mediaMode: homeViewMode == .videos ? .videosOnly : .photosOnly
                 ) { results in
                     guard !results.isEmpty else { return }
                     activeSheet = .importOptions(id: UUID(), results: results)

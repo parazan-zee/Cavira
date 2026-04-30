@@ -52,7 +52,7 @@ struct SlidePickerView<Next: View>: View {
                     title: "Nothing to add yet",
                     subtitle: sourceDay == nil
                         ? "Allow Photos access and start building a story from your gallery."
-                        : "No photos or videos were captured on this day."
+                        : "No photos were captured on this day."
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(CaviraTheme.backgroundPrimary)

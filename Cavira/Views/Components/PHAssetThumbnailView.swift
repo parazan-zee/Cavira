@@ -2,7 +2,7 @@ import Photos
 import SwiftUI
 import UIKit
 
-/// Square thumbnail for a Photos library `PHAsset` (photos + videos).
+/// Square thumbnail for a Photos library `PHAsset`.
 struct PHAssetThumbnailView: View {
     let asset: PHAsset
     var showsVideoBadge: Bool = true

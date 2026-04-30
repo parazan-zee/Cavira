@@ -26,7 +26,7 @@ struct CalendarDayGridView: View {
                 if assets.isEmpty {
                     EmptyStateView(
                         title: "Nothing captured",
-                        subtitle: "No photos or videos were captured on this date."
+                        subtitle: "No photos were captured on this date."
                     )
                     .padding(.horizontal, CaviraTheme.Spacing.md)
                 } else {

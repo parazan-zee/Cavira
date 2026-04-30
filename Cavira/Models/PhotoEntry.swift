@@ -24,6 +24,8 @@ final class PhotoEntry {
     var isInHomeAlbum: Bool
     /// Manual ordering for Home album (optional for migration safety). When nil, Home falls back to capturedDate order.
     var homeOrderIndex: Int?
+    /// Manual ordering for the Videos segment (optional). Kept separate from `homeOrderIndex` so photos and videos can be reordered independently.
+    var videoOrderIndex: Int?
     var capturedDate: Date
     var loggedDate: Date
     /// User-facing title for this photo/video (optional, set during import or later in Edit).
@@ -78,6 +80,7 @@ final class PhotoEntry {
         isLivePhoto: Bool = false,
         isInHomeAlbum: Bool = true,
         homeOrderIndex: Int? = nil,
+        videoOrderIndex: Int? = nil,
         capturedDate: Date,
         loggedDate: Date = Date(),
         title: String? = nil,
@@ -98,6 +101,7 @@ final class PhotoEntry {
         self.isLivePhoto = isLivePhoto
         self.isInHomeAlbum = isInHomeAlbum
         self.homeOrderIndex = homeOrderIndex
+        self.videoOrderIndex = videoOrderIndex
         self.capturedDate = capturedDate
         self.loggedDate = loggedDate
         self.title = title
