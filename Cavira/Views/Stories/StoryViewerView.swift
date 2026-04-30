@@ -14,9 +14,11 @@ struct StoryViewerView: View {
     @State private var selectedIndex: Int = 0
     @State private var isPaused: Bool = false
     @State private var progress: Double = 0
+    @State private var currentSlideDuration: TimeInterval = 10
+    @State private var videoDurationsByLocalIdentifier: [String: TimeInterval] = [:]
 
     private let tickInterval: TimeInterval = 0.05
-    private let secondsPerSlide: TimeInterval = 10
+    private let secondsPerPhotoSlide: TimeInterval = 10
 
     private var slides: [StorySlide] { story.orderedSlides }
 
@@ -44,15 +46,18 @@ struct StoryViewerView: View {
             selectedIndex = 0
             progress = 0
             isPaused = false
+            Task { await refreshCurrentSlideDuration() }
         }
         .onChange(of: selectedIndex) { _, _ in
             progress = 0
+            Task { await refreshCurrentSlideDuration() }
         }
         .onReceive(timer) { _ in
             guard !slides.isEmpty else { return }
             guard autoAdvance else { return }
             guard !isPaused else { return }
-            let delta = tickInterval / secondsPerSlide
+            let denom = max(currentSlideDuration, 0.4)
+            let delta = tickInterval / denom
             progress = min(1, progress + delta)
             if progress >= 1 {
                 goForward()
@@ -147,11 +152,44 @@ struct StoryViewerView: View {
             Image(systemName: "film")
                 .font(.largeTitle)
                 .foregroundStyle(.white.opacity(0.7))
-            Text("This story has no photos.")
+            Text("This story has no slides.")
                 .font(.headline)
                 .foregroundStyle(.white.opacity(0.92))
         }
         .padding(24)
+    }
+
+    @MainActor
+    private func refreshCurrentSlideDuration() async {
+        guard selectedIndex >= 0, selectedIndex < slides.count else {
+            currentSlideDuration = secondsPerPhotoSlide
+            return
+        }
+        guard let entry = slides[selectedIndex].photo else {
+            currentSlideDuration = secondsPerPhotoSlide
+            return
+        }
+        switch entry.mediaKind {
+        case .image:
+            currentSlideDuration = secondsPerPhotoSlide
+        case .video:
+            guard let lid = entry.localIdentifier else {
+                currentSlideDuration = secondsPerPhotoSlide
+                return
+            }
+            if let cached = videoDurationsByLocalIdentifier[lid] {
+                currentSlideDuration = cached
+                return
+            }
+            if let asset = appServices?.photoLibrary.asset(for: lid) {
+                // `PHAsset.duration` is in seconds.
+                let duration = max(asset.duration, 0.4)
+                videoDurationsByLocalIdentifier[lid] = duration
+                currentSlideDuration = duration
+            } else {
+                currentSlideDuration = secondsPerPhotoSlide
+            }
+        }
     }
 
     private var tapAdvanceGesture: some Gesture {

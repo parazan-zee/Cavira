@@ -143,12 +143,12 @@ struct SlidePickerView<Next: View>: View {
     private var selectionBar: some View {
         HStack {
             if selectedOrderedLocalIdentifiers.isEmpty {
-                Text("Tap photos to select")
+                Text("Tap items to select")
                     .font(CaviraTheme.Typography.caption)
                     .foregroundStyle(CaviraTheme.textTertiary)
             } else {
                 let count = selectedOrderedLocalIdentifiers.count
-                Text("\(count) photo\(count == 1 ? "" : "s") selected")
+                Text("\(count) item\(count == 1 ? "" : "s") selected")
                     .font(CaviraTheme.Typography.caption)
                     .foregroundStyle(CaviraTheme.textSecondary)
             }
@@ -429,7 +429,7 @@ struct SlidePickerView<Next: View>: View {
             if let sourceDay {
                 assets = services.photoLibrary.assets(onDay: sourceDay)
             } else {
-                let result = services.photoLibrary.fetchAllAssets()
+                let result = services.photoLibrary.fetchAllAssetsForStories()
                 var items: [PHAsset] = []
                 items.reserveCapacity(min(result.count, 2000))
                 result.enumerateObjects { asset, idx, stop in

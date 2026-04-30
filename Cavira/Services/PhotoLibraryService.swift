@@ -48,6 +48,18 @@ final class PhotoLibraryService {
         return PHAsset.fetchAssets(with: options)
     }
 
+    /// Images + videos, newest first (creation date descending). Used for Stories-style pickers.
+    func fetchAllAssetsForStories() -> PHFetchResult<PHAsset> {
+        let options = PHFetchOptions()
+        options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+        options.predicate = NSPredicate(
+            format: "mediaType == %d OR mediaType == %d",
+            PHAssetMediaType.image.rawValue,
+            PHAssetMediaType.video.rawValue
+        )
+        return PHAsset.fetchAssets(with: options)
+    }
+
     func asset(for localIdentifier: String) -> PHAsset? {
         let results = PHAsset.fetchAssets(withLocalIdentifiers: [localIdentifier], options: nil)
         return results.firstObject

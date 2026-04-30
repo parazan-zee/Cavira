@@ -86,17 +86,21 @@ Make Home’s **Videos** segment a **first-class video-only surface**:
 **Build tracker:** 🟡 Planned
 
 ### Goal
-Allow users to add **videos** to Stories (builder + viewer) while keeping Home’s Grid/Timeline photos-only and keeping media **reference-only** from Apple Photos.
+Allow users to add **photos and videos** to Stories (builder + viewer) while keeping Home’s Grid/Timeline photos-only and keeping media **reference-only** from Apple Photos.
 
 ### Product rules (locked for Phase 14)
-- **Story slides support video**: a slide can reference a `PhotoEntry` where `mediaKind == .video`.
-- **Reference-only**: Story video slides point to Apple Photos via `localIdentifier` (no Cavira-owned video files).
-- **Playback**: Viewer plays video slides using Photos-backed playback (no transcoding).
+- **Mixed media slides**: a Story can contain slides referencing `PhotoEntry` where `mediaKind == .image` or `.video`.
+- **Reference-only**: Story slides point to Apple Photos via `localIdentifier` (no Cavira-owned media files).
+- **Viewer timing**:
+  - **Photos**: 10 seconds per slide (as today).
+  - **Videos**: use the **full video duration** for auto-advance.
+- **Calendar → Add to Story stays photos-only**: the Calendar entry point remains scoped to photos captured on that day (even after Phase 14).
 - **Home exclusivity stays**: Videos still do not appear in Grid/Timeline; Stories is the only non-Videos surface allowed to show videos.
 
 ### Phase 14 Test Checklist
-- [ ] Story builder can pick videos as slides.
-- [ ] Viewer plays video slides (and still supports photo slides).
+- [ ] Story builder picker (normal entry) shows photos + videos and can select either as slides.
+- [ ] Calendar → Add to Story remains photos-only.
+- [ ] Viewer plays video slides and auto-advances at the end of the video (photos still advance at 10s).
 - [ ] Missing video asset handling matches Phase 12 resilience patterns.
 - [ ] No Cavira disk copy is created; share/export uses Photos resources.
 
@@ -1173,7 +1177,7 @@ Search should feel instant for typical library sizes (up to ~2000 photos). No lo
 # PHASE 9 — Stories (Viewer & Builder)
 **Build tracker:** ✅ Complete
 
-### Goal: Users can create Instagram-style Stories (photos) that play like a slideshow of a single memory (holiday / day out / graduation) without creating a separate media store. (Video slides planned in **Phase 14**.)
+### Goal: Users can create Instagram-style Stories (photos) that play like a slideshow of a single memory (holiday / day out / graduation) without creating a separate media store. (Mixed photo+video slides are shipped in **Phase 14**.)
 
 **List UX (current implementation):** **StoriesListView** is a **vertical scroll** of **110pt-tall horizontal cards** using `StoryCardView` (cover on the left, metadata on the right), split into **Pinned** and **Recent** sections when pinned stories exist. Toolbar `+` creates a new story; tapping a card opens `StoryViewerView`. Each card has an anchored **actions menu** (iOS-style) on a **pencil-circle** button with a larger hit target (Edit / Pin / Delete).
 
@@ -1234,7 +1238,7 @@ Navigation flow:
 4. Save → creates Story record in SwiftData
 
 ### Views/Stories/SlidePickerView.swift
-- Grid of the user’s **Photos library** photos for selection (Photos-backed, not limited to Home album). (Video selection planned in **Phase 14**.)
+- Grid of the user’s **Photos library** photos for selection (Photos-backed, not limited to Home album). (Normal story building adds videos in **Phase 14**; Calendar-scoped builder stays photos-only.)
 - **Grid layout:** **uniform 3-column** square cells (Instagram-style crop), with tight spacing; no uneven / spanning cells.
 - Multi-select enabled — tap to select/deselect; selected cells show a **numbered** badge that reflects selection order.
 - **Selected strip:** a horizontal strip of selected items appears at the top with **numbered thumbnails**; user can **remove** items and **drag-to-reorder** the strip (grid badges update live).
