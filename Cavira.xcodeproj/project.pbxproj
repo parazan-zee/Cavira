@@ -56,6 +56,7 @@
 		F100PH0212B8A8A2D00A0A001 /* GridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100PH0012B8A8A2D00A0A001 /* GridView.swift */; };
 		F100PH0222B8A8A2D00A0A001 /* AlbumTimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100PH0022B8A8A2D00A0A001 /* AlbumTimelineView.swift */; };
 		F100PH0272B8A8A2D00A0A003 /* HomeReorderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100PH0072B8A8A2D00A0A003 /* HomeReorderView.swift */; };
+		F100PH0282B8A8A2D00A0A003 /* VideoReorderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100PH0082B8A8A2D00A0A003 /* VideoReorderView.swift */; };
 		F100PH0232B8A8A2D00A0A001 /* PhotoThumbnailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100PH0032B8A8A2D00A0A001 /* PhotoThumbnailView.swift */; };
 		F100PH0242B8A8A2D00A0A001 /* EmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100PH0042B8A8A2D00A0A001 /* EmptyStateView.swift */; };
 		F100PH0262B8A8A2D00A0A002 /* ActivityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100PH0062B8A8A2D00A0A002 /* ActivityView.swift */; };
@@ -124,6 +125,7 @@
 		F100PH0012B8A8A2D00A0A001 /* GridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridView.swift; sourceTree = "<group>"; };
 		F100PH0022B8A8A2D00A0A001 /* AlbumTimelineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlbumTimelineView.swift; sourceTree = "<group>"; };
 		F100PH0072B8A8A2D00A0A003 /* HomeReorderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeReorderView.swift; sourceTree = "<group>"; };
+		F100PH0082B8A8A2D00A0A003 /* VideoReorderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoReorderView.swift; sourceTree = "<group>"; };
 		F100PH0032B8A8A2D00A0A001 /* PhotoThumbnailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoThumbnailView.swift; sourceTree = "<group>"; };
 		F100PH0042B8A8A2D00A0A001 /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
 		F100PH0062B8A8A2D00A0A002 /* ActivityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityView.swift; sourceTree = "<group>"; };
@@ -268,6 +270,7 @@
 				F100PH0012B8A8A2D00A0A001 /* GridView.swift */,
 				F100PH0022B8A8A2D00A0A001 /* AlbumTimelineView.swift */,
 				F100PH0072B8A8A2D00A0A003 /* HomeReorderView.swift */,
+				F100PH0082B8A8A2D00A0A003 /* VideoReorderView.swift */,
 			);
 			path = Home;
 			sourceTree = "<group>";
@@ -413,6 +416,7 @@
 				F100PH0212B8A8A2D00A0A001 /* GridView.swift in Sources */,
 				F100PH0222B8A8A2D00A0A001 /* AlbumTimelineView.swift in Sources */,
 				F100PH0272B8A8A2D00A0A003 /* HomeReorderView.swift in Sources */,
+				F100PH0282B8A8A2D00A0A003 /* VideoReorderView.swift in Sources */,
 				F100PH0232B8A8A2D00A0A001 /* PhotoThumbnailView.swift in Sources */,
 				F100PH0242B8A8A2D00A0A001 /* EmptyStateView.swift in Sources */,
 				F100PH0262B8A8A2D00A0A002 /* ActivityView.swift in Sources */,
