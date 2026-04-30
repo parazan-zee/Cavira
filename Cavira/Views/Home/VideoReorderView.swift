@@ -6,7 +6,7 @@ struct VideoReorderView: View {
     @Environment(\.modelContext) private var modelContext
 
     @Query(
-        filter: #Predicate<PhotoEntry> { $0.isInHomeAlbum == true && $0.mediaKind == PhotoAssetKind.video }
+        filter: #Predicate<PhotoEntry> { $0.isInHomeAlbum == true }
     )
     private var queriedVideos: [PhotoEntry]
 
@@ -28,7 +28,9 @@ struct VideoReorderView: View {
     }
 
     private var videos: [PhotoEntry] {
-        queriedVideos.sorted(by: videoSort)
+        queriedVideos
+            .filter { $0.mediaKind == .video }
+            .sorted(by: videoSort)
     }
 
     private var videoIDs: [UUID] {
