@@ -18,8 +18,7 @@ struct StoryBuilderView: View {
                 sourceDay: sourceDay,
                 onCancel: { dismiss() }
             ) { selectedEntries in
-                let sorted = selectedEntries.sorted { $0.capturedDate < $1.capturedDate }
-                return StoryDraftEditorView(selectedEntries: sorted, editingStory: editingStory) { dismiss() }
+                StoryDraftEditorView(selectedEntries: selectedEntries, editingStory: editingStory) { dismiss() }
             }
             .navigationTitle(editingStory == nil ? "New Story" : "Edit Story")
             .navigationBarTitleDisplayMode(.inline)

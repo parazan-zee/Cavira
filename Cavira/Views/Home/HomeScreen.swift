@@ -9,15 +9,29 @@ struct HomeScreen: View {
     @Environment(\.openURL) private var openURL
 
     @Query(
-        filter: #Predicate<PhotoEntry> { $0.isInHomeAlbum == true },
+        filter: #Predicate<PhotoEntry> { $0.isInHomeAlbum == true && $0.homeCollection == nil },
         sort: \PhotoEntry.capturedDate,
         order: .reverse
     )
-    private var queriedPhotos: [PhotoEntry]
+    private var queriedStandalone: [PhotoEntry]
 
-    /// All entries in the curated Home album (photos + videos).
+    @Query(sort: \HomeCollection.createdDate, order: .reverse)
+    private var allHomeCollections: [HomeCollection]
+
+    /// Standalone entries in the curated Home album (photos + videos), excluding collection members.
     private var albumEntries: [PhotoEntry] {
-        queriedPhotos.sorted(by: albumSort)
+        queriedStandalone.sorted(by: albumSort)
+    }
+
+    /// Grid + timeline rows (standalone image tiles + collections).
+    private var gridTimelineRows: [HomeAlbumRow] {
+        let standaloneImages = albumEntries
+            .filter { $0.mediaKind == .image }
+            .map { HomeAlbumRow.standalone($0) }
+        let cols = allHomeCollections
+            .filter { $0.coverEntry != nil }
+            .map { HomeAlbumRow.collection($0) }
+        return (standaloneImages + cols).sorted(by: HomeAlbumRow.mergedSort)
     }
 
     private var photos: [PhotoEntry] {
@@ -51,7 +65,7 @@ struct HomeScreen: View {
 
     @State private var activeSheet: HomeSheet?
     @State private var showPhotoDeniedAlert = false
-    @State private var entryPendingRemoval: PhotoEntry?
+    @State private var rowPendingRemoval: HomeAlbumRow?
     @State private var showRemoveConfirm = false
     @State private var entryPendingEdit: PhotoEntry?
     @State private var showEditTags = false
@@ -66,17 +80,19 @@ struct HomeScreen: View {
             homeViewMode: $homeViewMode,
             activeSheet: $activeSheet,
             showPhotoDeniedAlert: $showPhotoDeniedAlert,
-            entryPendingRemoval: $entryPendingRemoval,
+            rowPendingRemoval: $rowPendingRemoval,
             showRemoveConfirm: $showRemoveConfirm,
             entryPendingEdit: $entryPendingEdit,
             showEditTags: $showEditTags,
             showReorderPhotos: $showReorderPhotos,
             showReorderVideos: $showReorderVideos,
+            gridTimelineRows: gridTimelineRows,
             photos: photos,
             videoPhotos: videoPhotos,
             albumEntries: albumEntries,
+            allHomeCollections: allHomeCollections,
             beginImportFlow: beginImportFlow,
-            removeFromAlbum: removeFromAlbum,
+            removeRowFromHome: removeRowFromHome,
             onAppearLoadDefaultViewMode: onAppearLoadDefaultViewMode,
             onChangeHomeViewMode: onChangeHomeViewMode,
             onTapReorder: onTapReorder,
@@ -121,13 +137,24 @@ struct HomeScreen: View {
     }
 
     @MainActor
-    private func removeFromAlbum(_ entry: PhotoEntry) {
+    private func removeRowFromHome(_ row: HomeAlbumRow) {
         guard let services = appServices else { return }
         showRemoveConfirm = false
-        entry.isInHomeAlbum = false
+        switch row {
+        case .standalone(let entry):
+            entry.isInHomeAlbum = false
+        case .collection(let collection):
+            let members = collection.entries
+            for entry in members {
+                entry.homeCollection = nil
+                entry.collectionMemberOrder = nil
+                entry.isInHomeAlbum = false
+            }
+            modelContext.delete(collection)
+        }
         try? modelContext.save()
         services.photoImageLoader.clearCache()
-        entryPendingRemoval = nil
+        rowPendingRemoval = nil
     }
 
     @MainActor
@@ -192,19 +219,21 @@ private struct HomeScreenScaffold: View {
     @Binding var homeViewMode: HomeViewMode
     @Binding var activeSheet: HomeScreen.HomeSheet?
     @Binding var showPhotoDeniedAlert: Bool
-    @Binding var entryPendingRemoval: PhotoEntry?
+    @Binding var rowPendingRemoval: HomeAlbumRow?
     @Binding var showRemoveConfirm: Bool
     @Binding var entryPendingEdit: PhotoEntry?
     @Binding var showEditTags: Bool
     @Binding var showReorderPhotos: Bool
     @Binding var showReorderVideos: Bool
 
+    let gridTimelineRows: [HomeAlbumRow]
     let photos: [PhotoEntry]
     let videoPhotos: [PhotoEntry]
     let albumEntries: [PhotoEntry]
+    let allHomeCollections: [HomeCollection]
 
     let beginImportFlow: @MainActor () async -> Void
-    let removeFromAlbum: @MainActor (PhotoEntry) -> Void
+    let removeRowFromHome: @MainActor (HomeAlbumRow) -> Void
     let onAppearLoadDefaultViewMode: () -> Void
     let onChangeHomeViewMode: (HomeViewMode) -> Void
     let onTapReorder: () -> Void
@@ -213,7 +242,9 @@ private struct HomeScreenScaffold: View {
 
     var body: some View {
         baseContent
-            .navigationDestination(for: UUID.self) { id in destinationView(for: id) }
+            .navigationDestination(for: HomeDestination.self) { dest in
+                destinationView(for: dest)
+            }
             .onAppear { onAppearLoadDefaultViewMode() }
             .onChange(of: homeViewMode) { _, newValue in onChangeHomeViewMode(newValue) }
             .sheet(item: $activeSheet) { sheet in activeSheetView(sheet) }
@@ -226,15 +257,20 @@ private struct HomeScreenScaffold: View {
                 "Remove from Cavira?",
                 isPresented: $showRemoveConfirm,
                 titleVisibility: .visible,
-                presenting: entryPendingRemoval
-            ) { entry in
-                Button("Remove from album", role: .destructive) { removeFromAlbum(entry) }
-                Button("Cancel", role: .cancel) { entryPendingRemoval = nil }
-            } message: { _ in
-                Text("This only removes the item from your Cavira album. Nothing is deleted from Apple Photos.")
+                presenting: rowPendingRemoval
+            ) { row in
+                Button("Remove from album", role: .destructive) { removeRowFromHome(row) }
+                Button("Cancel", role: .cancel) { rowPendingRemoval = nil }
+            } message: { row in
+                switch row {
+                case .standalone:
+                    Text("This only removes the item from your Cavira album. Nothing is deleted from Apple Photos.")
+                case .collection:
+                    Text("This removes the collection from Home. Photos stay in Cavira for Stories and elsewhere. Nothing is deleted from Apple Photos.")
+                }
             }
             .sheet(isPresented: $showEditTags) { editTagsSheet }
-            .onChange(of: showRemoveConfirm) { _, isShowing in if !isShowing { entryPendingRemoval = nil } }
+            .onChange(of: showRemoveConfirm) { _, isShowing in if !isShowing { rowPendingRemoval = nil } }
             .onChange(of: showEditTags) { _, isShowing in if !isShowing { entryPendingEdit = nil } }
     }
 
@@ -271,7 +307,7 @@ private struct HomeScreenScaffold: View {
                     .foregroundStyle(CaviraTheme.accent, CaviraTheme.textTertiary)
             }
             .accessibilityLabel("Reorder album")
-            .disabled((homeViewMode == .videos ? videoPhotos.count : photos.count) < 2)
+            .disabled((homeViewMode == .videos ? videoPhotos.count : gridTimelineRows.count) < 2)
         }
         ToolbarItem(placement: .topBarTrailing) {
             AlbumImportToolbarButton(accessibilityLabel: "Add to album") {
@@ -281,16 +317,30 @@ private struct HomeScreenScaffold: View {
     }
 
     @ViewBuilder
-    private func destinationView(for id: UUID) -> some View {
-        if let entry = albumEntries.first(where: { $0.id == id }) {
-            PhotoDetailView(entry: entry)
-        } else {
-            ContentUnavailableView(
-                "Unavailable",
-                systemImage: "photo",
-                description: Text("This item is no longer in your album.")
-            )
-            .foregroundStyle(CaviraTheme.textSecondary)
+    private func destinationView(for dest: HomeDestination) -> some View {
+        switch dest {
+        case .photo(let id):
+            if let entry = albumEntries.first(where: { $0.id == id }) {
+                PhotoDetailView(entry: entry)
+            } else {
+                ContentUnavailableView(
+                    "Unavailable",
+                    systemImage: "photo",
+                    description: Text("This item is no longer in your album.")
+                )
+                .foregroundStyle(CaviraTheme.textSecondary)
+            }
+        case .collection(let id):
+            if let collection = allHomeCollections.first(where: { $0.id == id }) {
+                HomeCollectionViewer(collection: collection)
+            } else {
+                ContentUnavailableView(
+                    "Unavailable",
+                    systemImage: "square.stack",
+                    description: Text("This collection is no longer on Home.")
+                )
+                .foregroundStyle(CaviraTheme.textSecondary)
+            }
         }
     }
 
@@ -299,9 +349,9 @@ private struct HomeScreenScaffold: View {
         switch homeViewMode {
         case .timeline:
             AlbumTimelineView(
-                photos: photos,
-                onRequestRemove: { entry in
-                    entryPendingRemoval = entry
+                rows: gridTimelineRows,
+                onRequestRemoveRow: { row in
+                    rowPendingRemoval = row
                     showRemoveConfirm = true
                 },
                 onEdit: { entry in
@@ -311,12 +361,14 @@ private struct HomeScreenScaffold: View {
             )
         case .videos:
             GridView(
-                photos: videoPhotos,
+                rows: videoPhotos.map { HomeAlbumRow.standalone($0) },
                 emptyTitle: videosOnlyEmptyTitle,
                 emptySubtitle: videosOnlyEmptySubtitle,
-                onRequestRemove: { entry in
-                    entryPendingRemoval = entry
-                    showRemoveConfirm = true
+                onRequestRemoveRow: { row in
+                    if case .standalone(let entry) = row {
+                        rowPendingRemoval = .standalone(entry)
+                        showRemoveConfirm = true
+                    }
                 },
                 onEdit: { entry in
                     entryPendingEdit = entry
@@ -325,9 +377,9 @@ private struct HomeScreenScaffold: View {
             )
         case .grid, .profile, .events:
             GridView(
-                photos: photos,
-                onRequestRemove: { entry in
-                    entryPendingRemoval = entry
+                rows: gridTimelineRows,
+                onRequestRemoveRow: { row in
+                    rowPendingRemoval = row
                     showRemoveConfirm = true
                 },
                 onEdit: { entry in
@@ -368,7 +420,7 @@ private struct HomeScreenScaffold: View {
 
     /// Empty-state title for the Videos segment when the filtered list is empty.
     private var videosOnlyEmptyTitle: String {
-        if photos.isEmpty {
+        if gridTimelineRows.isEmpty && videoPhotos.isEmpty {
             "Import your media to start"
         } else {
             "No videos yet"
@@ -377,7 +429,7 @@ private struct HomeScreenScaffold: View {
 
     /// Empty-state subtitle for the Videos segment when the filtered list is empty.
     private var videosOnlyEmptySubtitle: String? {
-        if photos.isEmpty {
+        if gridTimelineRows.isEmpty && videoPhotos.isEmpty {
             "Your album stays in Apple Photos; Cavira is where you curate what appears here."
         } else {
             "Use + to add videos from your library, or open Grid or Timeline to browse your photos."

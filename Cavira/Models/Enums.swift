@@ -43,7 +43,7 @@ enum ThemePalette: String, Codable, CaseIterable, Identifiable {
         }
     }
 
-    /// Accent swatch shown in Settings.
+    /// Matches `CaviraTheme` accent; used for global `.tint()` (tab bar, controls).
     var swatchColor: Color {
         switch self {
         case .ranger: return Color(hex: "#D4B96A")
@@ -51,6 +51,17 @@ enum ThemePalette: String, Codable, CaseIterable, Identifiable {
         case .midnight: return Color(hex: "#F4F4F4")
         case .arctic: return Color(hex: "#5FA8FF")
         case .ember: return Color(hex: "#FF8A3D")
+        }
+    }
+
+    /// Small color chip in Settings / theme picker. Same as `swatchColor` except **Cloud** and
+    /// **Midnight**, where the accent is black / off‑white and would read backwards beside the name;
+    /// those use a typical surface tone instead.
+    var themePickerSwatchColor: Color {
+        switch self {
+        case .cloud: return Color(hex: "#F4F1EA")
+        case .midnight: return Color(hex: "#121212")
+        default: return swatchColor
         }
     }
 }

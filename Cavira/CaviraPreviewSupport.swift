@@ -7,6 +7,7 @@ enum CaviraPreviewSupport {
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
         return try! ModelContainer(
             for: PhotoEntry.self,
+            HomeCollection.self,
             Event.self,
             Story.self,
             StorySlide.self,

@@ -13,7 +13,7 @@ struct ThemePickerSheet: View {
                         onSelect(palette)
                     } label: {
                         HStack(spacing: 12) {
-                            themeSwatch(palette.swatchColor)
+                            themeSwatch(palette.themePickerSwatchColor)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(palette.displayName)
                                     .foregroundStyle(CaviraTheme.textPrimary)

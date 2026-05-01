@@ -16,6 +16,7 @@ struct CaviraApp: App {
             RootView(appServices: appServices)
                 .modelContainer(for: [
                     PhotoEntry.self,
+                    HomeCollection.self,
                     Event.self,
                     Story.self,
                     StorySlide.self,

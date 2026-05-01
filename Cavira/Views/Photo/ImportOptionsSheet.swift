@@ -38,8 +38,15 @@ struct ImportOptionsSheet: View {
     @State private var importProgressCurrent: Int = 0
     @State private var importProgressTotal: Int = 0
 
+    @State private var collectionTitleText: String = ""
+    @State private var didAttemptCollectionAdd = false
+
     private var itemCount: Int {
         localIdentifiers.count
+    }
+
+    private var isMultiItemCollectionFlow: Bool {
+        itemCount >= 2
     }
 
     private var titleInvalid: Bool {
@@ -47,58 +54,139 @@ struct ImportOptionsSheet: View {
         return didAttemptAdd && titleText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    private var collectionTitleInvalid: Bool {
+        guard isMultiItemCollectionFlow else { return false }
+        return didAttemptCollectionAdd && collectionTitleText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     var body: some View {
         NavigationStack {
             Form {
-                Section {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(itemCount == 1 ? "Add 1 item" : "Add \(itemCount) items")
-                            .font(CaviraTheme.Typography.title)
-                            .foregroundStyle(CaviraTheme.textPrimary)
-
-                        Text("Add a title (required for single items), and optionally tag a location and people.")
-                            .font(CaviraTheme.Typography.caption)
-                            .foregroundStyle(CaviraTheme.textTertiary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    .padding(.vertical, 4)
+                introSection
+                titleOrMetadataSection
+                locationAndPeopleSections
+            }
+            .scrollContentBackground(.hidden)
+            .background(CaviraTheme.backgroundSecondary)
+            .navigationTitle("Add")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(CaviraTheme.backgroundPrimary, for: .navigationBar)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                        .foregroundStyle(CaviraTheme.textSecondary)
                 }
-                .listRowBackground(CaviraTheme.backgroundSecondary)
-
-                Section {
-                    if itemCount == 1 {
-                        TextField("Title", text: $titleText)
-                            .textInputAutocapitalization(.sentences)
-                            .foregroundStyle(CaviraTheme.textPrimary)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: CaviraTheme.Radius.medium, style: .continuous)
-                                    .stroke(titleInvalid ? CaviraTheme.destructive : .clear, lineWidth: 1.5)
-                            )
-
-                        if titleInvalid {
-                            Text("Title is required.")
-                                .font(CaviraTheme.Typography.caption)
-                                .foregroundStyle(CaviraTheme.destructive)
-                        }
-                    } else {
-                        Text("Title can be added after saving (Edit).")
-                            .font(CaviraTheme.Typography.caption)
-                            .foregroundStyle(CaviraTheme.textTertiary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                } header: {
-                    HStack(spacing: 4) {
-                        Text("Title")
-                            .foregroundStyle(CaviraTheme.textSecondary)
-                        if itemCount == 1 {
-                            Text("*")
-                                .foregroundStyle(CaviraTheme.destructive)
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Add") {
+                        if isMultiItemCollectionFlow {
+                            didAttemptCollectionAdd = true
+                            runCollectionImport()
+                        } else {
+                            didAttemptAdd = true
+                            runImport()
                         }
                     }
+                    .fontWeight(.semibold)
+                    .foregroundStyle(CaviraTheme.accent)
+                    .disabled(isImporting)
                 }
-                .listRowBackground(CaviraTheme.surfaceCard)
+            }
+            .overlay {
+                if isImporting {
+                    importProgressOverlay
+                }
+            }
+            .alert("Add", isPresented: $showImportMessageAlert) {
+                Button("OK", role: .cancel) {
+                    importErrorMessage = nil
+                    if dismissAfterAlert {
+                        dismissAfterAlert = false
+                        dismiss()
+                    }
+                }
+            } message: {
+                Text(importErrorMessage ?? "")
+            }
+        }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+        .interactiveDismissDisabled(isImporting)
+    }
 
-                Section {
+    @ViewBuilder
+    private var introSection: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 6) {
+                if itemCount == 1 {
+                    Text("Add 1 item")
+                        .font(CaviraTheme.Typography.title)
+                        .foregroundStyle(CaviraTheme.textPrimary)
+                    Text("Add a title (required), and optionally tag a location and people.")
+                        .font(CaviraTheme.Typography.caption)
+                        .foregroundStyle(CaviraTheme.textTertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    Text("New collection · \(itemCount) photos")
+                        .font(CaviraTheme.Typography.title)
+                        .foregroundStyle(CaviraTheme.textPrimary)
+                    Text("Add a collection title (required). Location and people apply to every photo.")
+                        .font(CaviraTheme.Typography.caption)
+                        .foregroundStyle(CaviraTheme.textTertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padding(.vertical, 4)
+        }
+        .listRowBackground(CaviraTheme.backgroundSecondary)
+    }
+
+    @ViewBuilder
+    private var titleOrMetadataSection: some View {
+        Section {
+            if itemCount == 1 {
+                TextField("Title", text: $titleText)
+                    .textInputAutocapitalization(.sentences)
+                    .foregroundStyle(CaviraTheme.textPrimary)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: CaviraTheme.Radius.medium, style: .continuous)
+                            .stroke(titleInvalid ? CaviraTheme.destructive : .clear, lineWidth: 1.5)
+                    )
+
+                if titleInvalid {
+                    Text("Title is required.")
+                        .font(CaviraTheme.Typography.caption)
+                        .foregroundStyle(CaviraTheme.destructive)
+                }
+            } else {
+                TextField("Collection title", text: $collectionTitleText)
+                    .textInputAutocapitalization(.sentences)
+                    .foregroundStyle(CaviraTheme.textPrimary)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: CaviraTheme.Radius.medium, style: .continuous)
+                            .stroke(collectionTitleInvalid ? CaviraTheme.destructive : .clear, lineWidth: 1.5)
+                    )
+
+                if collectionTitleInvalid {
+                    Text("Collection title is required.")
+                        .font(CaviraTheme.Typography.caption)
+                        .foregroundStyle(CaviraTheme.destructive)
+                }
+            }
+        } header: {
+            HStack(spacing: 4) {
+                Text(itemCount == 1 ? "Title" : "Collection")
+                    .foregroundStyle(CaviraTheme.textSecondary)
+                Text("*")
+                    .foregroundStyle(CaviraTheme.destructive)
+            }
+        }
+        .listRowBackground(CaviraTheme.surfaceCard)
+    }
+
+    @ViewBuilder
+    private var locationAndPeopleSections: some View {
+        Group {
+            Section {
                     if let appliedLocationTag {
                         TagChipView(label: appliedLocationTag.name, systemImage: "mappin.and.ellipse") {
                             self.appliedLocationTag = nil
@@ -224,47 +312,7 @@ struct ImportOptionsSheet: View {
                 .task(id: peopleQuery) {
                     await refreshContactResults()
                 }
-            }
-            .scrollContentBackground(.hidden)
-            .background(CaviraTheme.backgroundSecondary)
-            .navigationTitle("Add")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(CaviraTheme.backgroundPrimary, for: .navigationBar)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                        .foregroundStyle(CaviraTheme.textSecondary)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Add") {
-                        didAttemptAdd = true
-                        runImport()
-                    }
-                        .fontWeight(.semibold)
-                        .foregroundStyle(CaviraTheme.accent)
-                        .disabled(isImporting)
-                }
-            }
-            .overlay {
-                if isImporting {
-                    importProgressOverlay
-                }
-            }
-            .alert("Add", isPresented: $showImportMessageAlert) {
-                Button("OK", role: .cancel) {
-                    importErrorMessage = nil
-                    if dismissAfterAlert {
-                        dismissAfterAlert = false
-                        dismiss()
-                    }
-                }
-            } message: {
-                Text(importErrorMessage ?? "")
-            }
         }
-        .presentationDetents([.large])
-        .presentationDragIndicator(.visible)
-        .interactiveDismissDisabled(isImporting)
     }
 
     private var importProgressOverlay: some View {
@@ -302,12 +350,22 @@ struct ImportOptionsSheet: View {
             return
         }
 
+        if itemCount == 1,
+           let lid = localIdentifiers.first,
+           let existing = DataService.existingPhotoEntry(localIdentifier: lid, context: modelContext),
+           existing.homeCollection != nil {
+            importErrorMessage = "This photo is already in a collection."
+            dismissAfterAlert = false
+            showImportMessageAlert = true
+            return
+        }
+
         // Capture duplicate state *before* import runs. Newly inserted entries default to `isInHomeAlbum = true`,
         // so counting duplicates after import can misclassify fresh adds as "already in your album".
         var wasAlreadyInHome: Set<String> = []
         for lid in localIdentifiers {
             if let existing = DataService.existingPhotoEntry(localIdentifier: lid, context: modelContext),
-               existing.isInHomeAlbum {
+               existing.isInHomeAlbum || existing.homeCollection != nil {
                 wasAlreadyInHome.insert(lid)
             }
         }
@@ -348,7 +406,7 @@ struct ImportOptionsSheet: View {
                 let willAddToHomeCount = max(affected.count - alreadyInHomeCount, 0)
 
                 if willAddToHomeCount == 0, !affected.isEmpty {
-                    importErrorMessage = "Already in your album. Pick something else to add."
+                    importErrorMessage = "Already in your album or a collection. Pick something else to add."
                     dismissAfterAlert = true
                     showImportMessageAlert = true
                     return
@@ -365,6 +423,106 @@ struct ImportOptionsSheet: View {
                 } else {
                     dismiss()
                 }
+            } catch {
+                importErrorMessage = error.localizedDescription
+                dismissAfterAlert = false
+                showImportMessageAlert = true
+            }
+        }
+    }
+
+    private func runCollectionImport() {
+        guard let services = appServices else { return }
+        let trimmedCollection = collectionTitleText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmedCollection.isEmpty { return }
+
+        var seenLids = Set<String>()
+        var orderedUniqueLids: [String] = []
+        orderedUniqueLids.reserveCapacity(localIdentifiers.count)
+        for lid in localIdentifiers {
+            if seenLids.insert(lid).inserted {
+                orderedUniqueLids.append(lid)
+            }
+        }
+        guard orderedUniqueLids.count >= 2 else {
+            importErrorMessage = "Select at least two photos for a collection."
+            dismissAfterAlert = false
+            showImportMessageAlert = true
+            return
+        }
+
+        for lid in orderedUniqueLids {
+            if let existing = DataService.existingPhotoEntry(localIdentifier: lid, context: modelContext),
+               existing.homeCollection != nil {
+                importErrorMessage = "One or more photos are already in another collection."
+                dismissAfterAlert = false
+                showImportMessageAlert = true
+                return
+            }
+        }
+
+        isImporting = true
+        importProgressCurrent = 0
+        importProgressTotal = orderedUniqueLids.count
+        Task { @MainActor in
+            defer { isImporting = false }
+            do {
+                _ = try PhotoImportService.importLocalIdentifiers(
+                    orderedUniqueLids,
+                    context: modelContext,
+                    photoLibrary: services.photoLibrary,
+                    onProgress: { current, total in
+                        importProgressCurrent = current
+                        importProgressTotal = total
+                    }
+                )
+
+                var imageMembers: [PhotoEntry] = []
+                imageMembers.reserveCapacity(orderedUniqueLids.count)
+                for lid in orderedUniqueLids {
+                    guard let entry = DataService.existingPhotoEntry(localIdentifier: lid, context: modelContext) else { continue }
+                    guard entry.mediaKind == .image else { continue }
+                    if !imageMembers.contains(where: { $0.id == entry.id }) {
+                        imageMembers.append(entry)
+                    }
+                }
+                guard imageMembers.count >= 2 else {
+                    importErrorMessage = "Collections need at least two photos."
+                    dismissAfterAlert = false
+                    showImportMessageAlert = true
+                    return
+                }
+
+                let coll = HomeCollection(
+                    title: trimmedCollection,
+                    homeOrderIndex: DataService.nextHomeOrderIndex(context: modelContext),
+                    createdDate: Date()
+                )
+                modelContext.insert(coll)
+
+                for (idx, entry) in imageMembers.enumerated() {
+                    entry.homeCollection = coll
+                    entry.collectionMemberOrder = idx
+                    entry.isInHomeAlbum = false
+                    entry.homeOrderIndex = nil
+                    if let appliedLocationTag {
+                        entry.locationTag = appliedLocationTag
+                    }
+                    if !appliedPeopleTags.isEmpty {
+                        for p in appliedPeopleTags where !entry.peopleTags.contains(where: { $0.id == p.id }) {
+                            entry.peopleTags.append(p)
+                        }
+                        var placements = entry.peopleTagPlacements
+                        for p in appliedPeopleTags where !placements.contains(where: { $0.personTagId == p.id }) {
+                            placements.append(PersonTagPlacement(personTagId: p.id, x: 0.12, y: 0.14))
+                        }
+                        entry.peopleTagPlacements = placements
+                    }
+                }
+                coll.entries = imageMembers
+
+                try modelContext.save()
+                dismiss()
             } catch {
                 importErrorMessage = error.localizedDescription
                 dismissAfterAlert = false

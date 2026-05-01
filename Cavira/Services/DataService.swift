@@ -89,6 +89,62 @@ enum DataService {
         return settings
     }
 
+    /// Restores **preferences only** (storage default, home view, appearance, theme). Does not remove
+    /// photos, stories, or tags.
+    static func resetSettingsToDefaults(context: ModelContext) throws {
+        let s = getOrCreateSettings(context: context)
+        Self.applyDefaultPreferences(to: s)
+        try context.save()
+    }
+
+    /// Removes all Cavira SwiftData content (stories, Home album entries, events, tags, notes).
+    /// Assets in Apple Photos are **not** deleted. `AppSettings` is reset to defaults afterward.
+    static func deleteAllCaviraData(context: ModelContext, photoStorage: any PhotoStorageServing) throws {
+        for story in (try? context.fetch(FetchDescriptor<Story>())) ?? [] {
+            context.delete(story)
+        }
+        for event in (try? context.fetch(FetchDescriptor<Event>())) ?? [] {
+            context.delete(event)
+        }
+        for collection in (try? context.fetch(FetchDescriptor<HomeCollection>())) ?? [] {
+            context.delete(collection)
+        }
+        for entry in allPhotos(context: context) {
+            if entry.storageMode == .localCopy, let name = entry.storedFilename {
+                try? photoStorage.deleteFile(named: name)
+            }
+            context.delete(entry)
+        }
+        for tag in (try? context.fetch(FetchDescriptor<LocationTag>())) ?? [] {
+            context.delete(tag)
+        }
+        for tag in (try? context.fetch(FetchDescriptor<PersonTag>())) ?? [] {
+            context.delete(tag)
+        }
+        let s = getOrCreateSettings(context: context)
+        Self.applyDefaultPreferences(to: s)
+        s.didMigrateEventsToStories = true
+        try context.save()
+    }
+
+    private static func applyDefaultPreferences(to s: AppSettings) {
+        s.defaultStorageMode = .reference
+        s.defaultHomeView = .grid
+        s.appearanceMode = .system
+        s.themePalette = .ranger
+    }
+
+    /// Next contiguous index for a new standalone Home row or `HomeCollection` tile (shared ordering space).
+    static func nextHomeOrderIndex(context: ModelContext) -> Int {
+        let photoDescriptor = FetchDescriptor<PhotoEntry>()
+        let photos = (try? context.fetch(photoDescriptor)) ?? []
+        let colDescriptor = FetchDescriptor<HomeCollection>()
+        let collections = (try? context.fetch(colDescriptor)) ?? []
+        let pMax = photos.compactMap(\.homeOrderIndex).max() ?? -1
+        let cMax = collections.compactMap(\.homeOrderIndex).max() ?? -1
+        return max(pMax, cMax) + 1
+    }
+
     /// One-time migration: convert legacy `Event` rows into `Story` rows, then delete the legacy rows.
     ///
     /// This removes the old tab concept while preserving user history.

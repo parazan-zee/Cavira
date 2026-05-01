@@ -2,9 +2,37 @@ import SwiftData
 import SwiftUI
 
 struct SearchView: View {
-    @Query(filter: #Predicate<PhotoEntry> { $0.isInHomeAlbum == true }, sort: \PhotoEntry.capturedDate, order: .reverse) private var photos: [PhotoEntry]
+    @Query(
+        filter: #Predicate<PhotoEntry> { $0.isInHomeAlbum == true || $0.homeCollection != nil },
+        sort: \PhotoEntry.capturedDate,
+        order: .reverse
+    )
+    private var catalogPhotos: [PhotoEntry]
+
+    @Query(sort: \HomeCollection.createdDate, order: .reverse)
+    private var homeCollections: [HomeCollection]
+
     @Query(sort: \LocationTag.name, order: .forward) private var locations: [LocationTag]
     @Query(sort: \PersonTag.displayName, order: .forward) private var people: [PersonTag]
+
+    private enum SearchResultRow: Identifiable {
+        case entry(PhotoEntry)
+        case collection(HomeCollection)
+
+        var id: String {
+            switch self {
+            case .entry(let e): "e:\(e.id.uuidString)"
+            case .collection(let c): "c:\(c.id.uuidString)"
+            }
+        }
+
+        var sortDate: Date {
+            switch self {
+            case .entry(let e): e.capturedDate
+            case .collection(let c): c.coverEntry?.capturedDate ?? c.createdDate
+            }
+        }
+    }
 
     @State private var query = ""
 
@@ -38,13 +66,14 @@ struct SearchView: View {
         hasActiveFilters || !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || sortOrder != .newestFirst
     }
 
-    private var filtered: [PhotoEntry] {
-        var rows = photos
+    private var filteredRows: [SearchResultRow] {
+        var rows: [SearchResultRow] = []
+        var entryRows = catalogPhotos
 
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmed.isEmpty {
             let needle = trimmed.lowercased()
-            rows = rows.filter { entry in
+            entryRows = entryRows.filter { entry in
                 let haystacks: [String] = [
                     entry.title ?? "",
                     entry.notes ?? "",
@@ -56,26 +85,60 @@ struct SearchView: View {
         }
 
         if let selectedLocationID {
-            rows = rows.filter { $0.locationTag?.id == selectedLocationID }
+            entryRows = entryRows.filter { $0.locationTag?.id == selectedLocationID }
         }
         if let selectedPersonID {
-            rows = rows.filter { entry in
+            entryRows = entryRows.filter { entry in
                 entry.peopleTags.contains(where: { $0.id == selectedPersonID })
             }
         }
         if let dateStart {
-            rows = rows.filter { $0.capturedDate >= dateStart }
+            entryRows = entryRows.filter { $0.capturedDate >= dateStart }
         }
         if let dateEnd {
-            rows = rows.filter { $0.capturedDate <= dateEnd }
+            entryRows = entryRows.filter { $0.capturedDate <= dateEnd }
+        }
+
+        rows.append(contentsOf: entryRows.map { SearchResultRow.entry($0) })
+
+        let needle = trimmed.lowercased()
+        if !needle.isEmpty {
+            for collection in homeCollections where collection.coverEntry != nil {
+                guard collection.title.lowercased().contains(needle) else { continue }
+                guard collectionMatchesFilters(collection) else { continue }
+                let cid = collection.id
+                if !rows.contains(where: { row in
+                    if case .collection(let c) = row { return c.id == cid }
+                    return false
+                }) {
+                    rows.append(.collection(collection))
+                }
+            }
         }
 
         switch sortOrder {
         case .newestFirst:
-            return rows.sorted { $0.capturedDate > $1.capturedDate }
+            return rows.sorted { $0.sortDate > $1.sortDate }
         case .oldestFirst:
-            return rows.sorted { $0.capturedDate < $1.capturedDate }
+            return rows.sorted { $0.sortDate < $1.sortDate }
         }
+    }
+
+    private func collectionMatchesFilters(_ collection: HomeCollection) -> Bool {
+        if let selectedLocationID {
+            let ok = collection.entries.contains { $0.locationTag?.id == selectedLocationID }
+            if !ok { return false }
+        }
+        if let selectedPersonID {
+            let ok = collection.entries.contains { entry in
+                entry.peopleTags.contains { $0.id == selectedPersonID }
+            }
+            if !ok { return false }
+        }
+        let anchor = collection.coverEntry?.capturedDate ?? collection.createdDate
+        if let dateStart, anchor < dateStart { return false }
+        if let dateEnd, anchor > dateEnd { return false }
+        return true
     }
 
     var body: some View {
@@ -87,7 +150,7 @@ struct SearchView: View {
                 .padding(.horizontal, CaviraTheme.Spacing.md)
 
             HStack {
-                Text("\(filtered.count) \(filtered.count == 1 ? "result" : "results")")
+                Text("\(filteredRows.count) \(filteredRows.count == 1 ? "result" : "results")")
                     .font(CaviraTheme.Typography.caption)
                     .foregroundStyle(CaviraTheme.textTertiary)
                 Spacer()
@@ -111,20 +174,30 @@ struct SearchView: View {
             }
             .padding(.horizontal, CaviraTheme.Spacing.md)
 
-            if filtered.isEmpty {
+            if filteredRows.isEmpty {
                 EmptyStateView(
                     systemImage: "magnifyingglass",
-                    title: photos.isEmpty ? "Nothing to search yet" : "Nothing found",
-                    subtitle: photos.isEmpty ? "Add photos to your Cavira album, then search by title, location, or people." : nil
+                    title: catalogPhotos.isEmpty && homeCollections.isEmpty ? "Nothing to search yet" : "Nothing found",
+                    subtitle: catalogPhotos.isEmpty && homeCollections.isEmpty
+                        ? "Add photos or collections to your Cavira album, then search by title, location, or people."
+                        : nil
                 )
             } else {
                 ScrollView {
                     LazyVGrid(columns: gridColumns, spacing: 4) {
-                        ForEach(filtered, id: \.id) { entry in
-                            NavigationLink(value: entry.id) {
-                                PhotoThumbnailView(entry: entry)
+                        ForEach(filteredRows) { row in
+                            switch row {
+                            case .entry(let entry):
+                                NavigationLink(value: SearchBrowseDestination.photo(entry.id)) {
+                                    PhotoThumbnailView(entry: entry)
+                                }
+                                .buttonStyle(.plain)
+                            case .collection(let collection):
+                                NavigationLink(value: SearchBrowseDestination.collection(collection.id)) {
+                                    searchCollectionCell(collection)
+                                }
+                                .buttonStyle(.plain)
                             }
-                            .buttonStyle(.plain)
                         }
                     }
                     .padding(.horizontal, 4)
@@ -149,6 +222,24 @@ struct SearchView: View {
             GridItem(.flexible(), spacing: 4),
             GridItem(.flexible(), spacing: 4),
         ]
+    }
+
+    private func searchCollectionCell(_ collection: HomeCollection) -> some View {
+        ZStack(alignment: .topTrailing) {
+            if let cover = collection.coverEntry {
+                PhotoThumbnailView(entry: cover)
+            } else {
+                Rectangle()
+                    .fill(CaviraTheme.surfacePhoto)
+                    .aspectRatio(1, contentMode: .fit)
+            }
+            Image(systemName: "square.stack.fill")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.white)
+                .padding(5)
+                .background(Color.black.opacity(0.42), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .padding(6)
+        }
     }
 
     private var filterRow: some View {

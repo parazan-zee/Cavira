@@ -5,22 +5,22 @@
 
 ---
 
-## Repo snapshot — what’s in the build today (Phases 1–6.1)
+## Repo snapshot — what’s in the build today
 
-Use this as the **inventory of shipped behaviour** before starting **Phase 7+**.
+Use this with the **Build progress** table below. Major additions: **Phase 15 Home collections**, **collection viewer toolbar architecture**, **Settings data controls**, **theme picker chip colors**.
 
 | Area | In repo / working |
 |------|-------------------|
-| **Models** | SwiftData: `PhotoEntry` (incl. `mediaKind`, `isLivePhoto`, `localIdentifier`, **`isInHomeAlbum`**), `Story` (incl. **title, date, description, location, people, cover**), `StorySlide`, tags, `AppSettings` (`defaultHomeView`, `appearanceMode`, `defaultStorageMode`, **`themePalette?`** (optional for migration safety), legacy migration flag), `PhotoAssetKind`, `HomeViewMode` (`.grid`, `.timeline`, `.videos`, legacy-only cases kept for migration). **Legacy in repo (intentional, migration-only):** `Event` + any `PhotoEntry.event` / `Story.event` wiring exists for historical data compatibility; product behaviour is Stories-first (see **Decision: Retire legacy second tab concept** below). |
-| **Theme** | **`Theme/CaviraTheme.swift`** supports multiple palettes via **`ThemePalette`** (colors only; layout unchanged). **Default = Ranger.** User selects under **Settings → Display → Theme** (opens **ThemePickerSheet** with swatches). **UIKit chrome** is applied via **`CaviraTheme.applyGlobalChrome()`** (called at launch in `CaviraApp` and re-applied when theme changes). `RootView` uses `.preferredColorScheme(...)` based on palette (Cloud defaults to light; others default to dark). |
-| **Services** | `AppServices` + `Environment` (`AppServices?`); `PhotoLibraryService` (auth, `fetchAllAssets`, `assets(onDay:)`, recap helpers, **`assetCountsByDayInMonth`**, `asset(for:)`); `PhotoImageLoader`; `PhotoImportService` (reference import, dedupe by `localIdentifier`, **`importLocalIdentifiers`**); `PhotoStorageServing` / `NoOpPhotoStorage`; `LocationSearchService`, `ContactsService`, `DataService` (incl. one-time legacy migration into Stories). |
-| **Shell** | `RootView` `TabView` (5 tabs); launch **`AppSettings`** bootstrap + **Photos** `requestAuthorization` task; `HomeTab` … `SettingsTab` each **one `NavigationStack`**. |
-| **Home** | Segmented **Grid \| Timeline \| Videos** only. Home lists only `PhotoEntry.isInHomeAlbum == true`. **Long press context menu:** **Edit** (opens `EditTagsSheet`) + **Remove from album** (toggles `isInHomeAlbum = false`, Cavira-only). **`AlbumImportToolbarButton`** on all segments; **`ImportOptionsSheet`** (Home Add form) is album-only; **single-item imports require a Title** (shown as **Title*** with red validation on Add). **Duplicate feedback:** if the user picks only items already in the Home album (`isInHomeAlbum == true`), show a short **“Already in your album”** alert and dismiss (duplicate detection is computed from pre-import Home membership to avoid false positives). **Reorder:** “Reorder album” sheet writes `PhotoEntry.homeOrderIndex` and Home sorts by `homeOrderIndex` first, then `capturedDate`. `navigationDestination(for: UUID.self)` resolves **photo** for `PhotoDetailView`. |
-| **Photo detail** | `PhotoDetailView` shows a trailing **menu**: Edit tags, place people tags, **Share**, Remove from album. Share uses the native iOS share sheet (`UIActivityViewController`) and exports the underlying Photos asset resource to a temporary file when possible. |
-| **Photo / import UI** | `Views/Photo/` picker + import sheet + detail; `Views/Components/` thumbnails + empty state; `Views/Home/` grid + timeline + `HomeScreen`. |
-| **Calendar tab** | **`LibraryMonthCalendarView`** (counts + **limited / not-determined** footnotes); **month title** opens **“Go to month”** sheet (**graphical `DatePicker`** + **Jump to today’s month** + **Go** / **Cancel**); prev/next chevrons unchanged; tapping a day opens a **day grid** of that day’s Photos assets (**photos only**, read-only from `PHAsset`). Tapping an item opens an **Options** sheet (**full height**) that reuses shared flows: **Add to Home** presents **the same `ImportOptionsSheet`** used on Home; **Add to Story** presents **the same `StoryBuilderView`** used on Stories (scoped to that day’s captures). **Below the calendar:** a **Recap** module (“On this date” / “This month”) that auto-flips through past photos (fade every ~5s). `scenePhase` .active and `.task(id: displayedMonth)` refresh month counts after jumps. |
-| **Search** | Search the Cavira album (`PhotoEntry.isInHomeAlbum == true`) by **title, notes, location, and people** with **Location / People / Date** filter chips and **Newest/Oldest** sort. UI uses a **custom always-visible search bar** (not SwiftUI `.searchable`) with an always-visible **X reset** button that clears query + filters + sort. |
-| **Settings** | Settings & storage + display defaults + theme palettes. |
+| **Models** | SwiftData: `PhotoEntry` (incl. `mediaKind`, `isLivePhoto`, `localIdentifier`, **`isInHomeAlbum`**, **`homeCollection`**, **`collectionMemberOrder`** for ordered membership), **`HomeCollection`** (`title`, `homeOrderIndex`, `createdDate`, ordered `entries`, `coverEntry` / `orderedEntries` helpers), `Story`, `StorySlide`, tags, `AppSettings` (`defaultHomeView`, `appearanceMode`, `defaultStorageMode`, **`themePalette?`**, legacy migration flag), `PhotoAssetKind`, `HomeViewMode` (`.grid`, `.timeline`, `.videos`, legacy-only cases kept for migration). **Legacy in repo (intentional, migration-only):** `Event` + any `PhotoEntry.event` / `Story.event` wiring — product is Stories-first (see **Decision: Retire legacy second tab concept** below). |
+| **Theme** | **`CaviraTheme`** / **`ThemePalette`**. **ThemePickerSheet** uses **`themePickerSwatchColor`** per palette so chips read as light vs dark (e.g. Cloud vs Midnight). **`swatchColor`** remains for global `.tint()`. **UIKit chrome** via **`CaviraTheme.applyGlobalChrome()`**. |
+| **Services** | `AppServices` + `Environment` (`AppServices?`); photo library + image loader + import; **`DataService`** incl. **`resetSettingsToDefaults`**, **`deleteAllCaviraData`** (deletes **`HomeCollection`** and clears members per dissolve semantics), **`nextHomeOrderIndex`** for merged Home ordering. |
+| **Shell** | `RootView` `TabView` (5 tabs); one **`NavigationStack`** per tab. |
+| **Home** | **Grid \| Timeline \| Videos**. **Unified album rows:** standalone photos (`isInHomeAlbum == true` and `homeCollection == nil`) **plus** **`HomeCollection`** tiles (`HomeAlbumRow`); members do not get their own tiles. **Import:** **`ImportOptionsSheet`** — single-item **Title***; **2+** photos/Lives → one **Collection *** field + Location/People + **Add** (`runCollectionImport`). Collection cells: cover + **stack badge**. **Navigation:** **`HomeDestination`** (photo vs collection UUID); **`HomeCollectionViewer`** (paging `TabView`). **Context menu:** Edit + Remove; **collection** remove **dissolves** the whole group (same as spec). **Reorder:** merged list of standalone + collections. |
+| **Photo detail** | **`PhotoDetailView`**: principal **date + location** (`PhotoDetailNavChrome`), trailing **⋯** (Edit, place people tags, Share, Remove / **Delete collection**). **Share / delete-from-home** logic in **`PhotoDetailCommandHelpers`**. **Collection pager:** each page uses **`isEmbeddedInCollectionPager`** + **`SpatialTapGesture`** (so `TabView` paging wins); **no toolbar on tab pages** — **`HomeCollectionViewer`** owns **`.toolbar`** (principal + **`1 / N`** + **`PhotoDetailPagerOverflowMenu`**). **`externalPlacingPeopleTag`** binds “place tags” mode to the parent menu. **Delete collection** from detail removes the whole **`HomeCollection`** and all members from Home (not one photo only). |
+| **Photo / import UI** | `Views/Photo/`; `Views/Home/` incl. **`HomeCollectionViewer`**, **`HomeDestination`**, **`HomeAlbumRow`**. |
+| **Calendar tab** | Unchanged pattern from prior snapshot (month, day grid, recap, shared import/builder). |
+| **Search** | Album + **collections** browse (`PhotoEntry.isInHomeAlbum == true` **or** `homeCollection != nil` where applicable); collection navigation to **`HomeCollectionViewer`**. |
+| **Settings** | Display + storage; **Reset settings** and **Delete all Cavira data** with confirmations; **About** without version row (per product choice); theme picker as above. |
 
 **Schema changes:** adding SwiftData properties historically required **simulator delete app** or a migration; keep a **VersionedSchema** / migration story in mind before App Store.
 
@@ -30,9 +30,9 @@ Use this as the **inventory of shipped behaviour** before starting **Phase 7+**.
 
 | When | Focus |
 |------|--------|
-| **Next** | **Phase 9** — Stories shelf + viewer + builder. |
-| **Then** | **Phase 10** — Settings & storage; **Phase 11** — Pinning (no ProfileView). |
-| **Late v1** | **Phase 10** — Settings & storage (no alternate colour themes — **`CaviraTheme`** / Ranger is the only v1 skin); **Phase 11** — Pinning (no ProfileView). |
+| **Next** | **Phase 13** — Video-first Home refinements (Grid/Timeline photos-only, segment-aware import); **Phase 14** — Videos in Stories — see Build progress (**Phase 15 collections** shipped). |
+| **Then** | Continue **Phase 12** polish backlog as needed. |
+| **Late v1** | Ongoing polish per **Phase 12** backlog items. |
 | **Close v1** | **Phase 12** — Polish & QA: missing-asset UI, **import flow GUI**, **sticky timeline months** (if not done earlier), empty states everywhere, animations, app icon, memory, full walkthrough; **optional** polish: dark-mode **tint** tuning, **SwiftUI-only** tab/nav chrome (see Phase 12). |
 | **Backlog** (see **Additional improvements** + UX notes) | Centre tab **`+`** global import; Calendar **day detail** strip; Stories **~10 s** clips. |
 
@@ -106,6 +106,93 @@ Allow users to add **photos and videos** to Stories (builder + viewer) while kee
 
 ---
 
+## Phase 15 — Home collections
+**Build tracker:** ✅ Complete
+
+### Goal
+Introduce **Home collections**: user-curated **groups of library items** that appear on **Grid** and **Timeline** as **first-class tiles** (same density and ordering model as standalone photos), with a **single collection title** at import time, **no per-item titles** in that flow, and an **Instagram-style** drill-in viewer (swipe between members + **index indicator** top-trailing, e.g. `3 / 12`). **Stories are unchanged** — no new coupling between collections and `Story` / `StorySlide`.
+
+Product language: use **collection** everywhere the UI or copy previously implied an unnamed **batch**.
+
+### Relationship to existing surfaces
+- **Stories:** Independent. A `PhotoEntry` may appear in a Home collection **and** in Story slides (or Story-only without Home). **No** automatic Story creation when saving a collection.
+- **Videos (Home segment):** **Phase 15 collections are created only from the Grid/Timeline photo import path** (same picker filter as today: **images + Live Photos**, not the Videos-only picker). Mixed “video collections” are **out of scope** for this phase unless product revisits after Phase 13/14 stabilise.
+- **Calendar → Add to Home:** When the user selects **more than one** still/Live asset and confirms, use the **same branched flow** as Home (`ImportOptionsSheet` → **Collection add** step) so behaviour stays consistent.
+
+### Data model (hybrid A + B)
+1. **New `@Model` type: `HomeCollection`**
+   - `id: UUID`
+   - `title: String` (user-facing collection name; **one** field for the whole group)
+   - `homeOrderIndex: Int?` — participates in the **same manual ordering space** as standalone `PhotoEntry` rows on Home (see **Ordering** below)
+   - Optional: `createdDate` / `lastEditedDate` for debugging or timeline tie-breakers
+   - **Ordered membership** to `PhotoEntry` (implementation: ordered relationship array **or** explicit per-member `order: Int`; v1 must preserve **user-visible order** as picked in the collection flow and in reorder — default **picker order** at creation)
+
+2. **`PhotoEntry` extension (B)**
+   - Optional relationship: `homeCollection: HomeCollection?` (inverse of membership)
+   - **Exclusivity:** An asset may belong to **at most one** `HomeCollection`. Enforce at import and when moving items (v1: **no** “move into collection” UI unless added later).
+   - **Home visibility rules:**
+     - **Standalone row on Grid/Timeline:** `isInHomeAlbum == true` **and** `homeCollection == nil`.
+     - **Member of a collection:** `homeCollection != nil`. Members **do not** appear as their **own** tiles on Grid/Timeline (even if `isInHomeAlbum` were true — implementation should pick **one** rule and keep it consistent; recommended: members use `isInHomeAlbum == false` and **only** the parent `HomeCollection` consumes a Home slot; **Search** may still index member metadata as “in Cavira” via membership).
+   - **Conflict rule:** If a `PhotoEntry` is already a **member** of a Home collection, the **standalone** import path must **not** add that asset as its **own** Home tile (surface a clear message: already part of a collection). **Stories** ignore this rule for membership — Story slides can still reference that `PhotoEntry`.
+
+3. **Deduping / idempotency**
+   - Still **one `PhotoEntry` per `localIdentifier`** in SwiftData. Creating a collection **links** existing or newly imported rows; never duplicate rows for the same library id.
+
+### Import UX (single flow, branched — no separate top-level menu)
+1. User taps **`+`** → **same** `PHPicker` as today (segment-aware per Phase 13: **photos-only** on Grid/Timeline).
+2. **`ImportOptionsSheet`** (single “Add” form):
+   - **1 item:** **Title*** required; Location / People as today.
+   - **2+ items:** **Collection *** (required) on the **same** sheet — shared **Location** and **People** applied to every member; **Add** creates **`HomeCollection`** and links members (no separate `CollectionAddSheet`).
+3. On save: create **`HomeCollection`**, attach ordered members (`collectionMemberOrder`), set **`homeOrderIndex`**, persist, dismiss.
+
+### Grid & Timeline presentation
+- **Parity with standalone photos:** A collection appears as **one cell** with the **same** outer layout as a normal photo tile (thumbnail fills the cell).
+- **Cover:** Always the **first** member in the collection’s ordered list (not user-changeable in v1).
+- **Badge:** Small **collection** indicator **top-trailing** on the thumbnail (icon only; subtle, does not obscure the whole image).
+- **Timeline:** Interleave collection cells with standalone photo cells using the **unified sort** (see **Ordering**). Same badge treatment.
+
+### Drill-in viewer (collection detail)
+- Tapping a collection pushes **`HomeCollectionViewer`** (`TabView` paging, `.page`, index display hidden).
+- **Navigation bar (standard layout):** inline **`navigationTitle(collection.title)`**; **toolbar** on the **viewer** (not on each paged `PhotoDetailView`): **`.principal`** = shared **`PhotoDetailNavChrome.principalToolbarContent(for: currentEntry)`**; **`.topBarTrailing`** = **`1 / N`** + **`PhotoDetailPagerOverflowMenu`** (same actions as standalone detail). This avoids SwiftUI/`TabView` coupling where **per-page toolbars** slide or flicker during paging.
+- **Gestures:** Paged **`PhotoDetailView`** sets **`isEmbeddedInCollectionPager`** and uses **`SpatialTapGesture`** + **`simultaneousGesture`** for media chrome (people overlays / place flow); standalone detail keeps **`DragGesture(minimumDistance: 0)`** for tap-to-toggle overlays. **`externalPlacingPeopleTag`** syncs “place people tags” from the parent menu to the visible page.
+- **Helpers:** **`PhotoDetailCommandHelpers`** (share export, delete collection, remove standalone from Home); **`PhotoDetailNavChrome`** (centered date/location stack for toolbar).
+- **Detail destructive action:** When `entry.homeCollection != nil`, the menu offers **Delete collection** (entire group removed from Home per dissolve semantics), not “remove only this photo” from that menu.
+
+### Reordering (Home reorder sheet)
+- **One row per Home slot:** either a **standalone** `PhotoEntry` **or** a **`HomeCollection`** — never an expanded list of collection members in the reorder UI.
+- **Shared index space:** Both `PhotoEntry.homeOrderIndex` (standalone only) and `HomeCollection.homeOrderIndex` participate in a **single** merged ordering pass when the user saves reorder (renumber `0…n-1` across the merged list).
+- **Implementation sketch:** Fetch standalone entries + collections, merge-sort by current `(homeOrderIndex, fallback capturedDate)`, present one list, on save write contiguous indices back to the appropriate entities.
+
+### Search & other queries
+- **Search** should treat a collection’s **`title`** as searchable; optionally include member **titles/notes/tags** when indexing “Home album” content (spec detail when implementing).
+- **`DataService.deleteAllCaviraData`:** extend to delete **`HomeCollection`** rows (and nullify / delete members per chosen dissolve semantics).
+
+### Dissolve / remove (v1 default — refine if product disagrees)
+- **Remove collection from Home:** Delete the **`HomeCollection`** record, set all members `homeCollection = nil` and **`isInHomeAlbum = false`** (items remain in SwiftData for Stories / history). **Do not** delete `PhotoEntry` rows unless the user uses a separate destructive action.
+- **Standalone “Remove from album”** on a collection tile: same as above (remove grouping from Home).
+
+### Non-goals (Phase 15)
+- Changing **Story** builder, viewer, or schema.
+- User-pickable **cover** image for a collection.
+- **Video** collections on the Videos segment.
+- Nesting collections or cross-app iCloud sync of grouping metadata beyond SwiftData.
+
+### Phase 15 Test Checklist
+- [x] Picker multi-select on Grid/Timeline → **one Add form** with **Collection *** required; import succeeds.
+- [x] Single select → **per-item Title*** behaviour unchanged.
+- [x] Collection appears in **Grid** and **Timeline** with **cover = first ordered image member** and **top-trailing** collection badge.
+- [x] Tap collection → pager; **toolbar** shows date, **`1 / N`**, ⋯; swipe between members without toolbar flicker (chrome hosted on **`HomeCollectionViewer`**).
+- [x] Reorder sheet lists collections **once** alongside standalone photos; saved order matches Home.
+- [x] Member asset **cannot** also appear as a **standalone** Home tile; import blocked with clear messaging.
+- [x] Same asset may still be used in **Stories** regardless of Home collection membership.
+- [x] Remove collection from Home / **Delete collection** from detail **dissolves** grouping per spec without deleting Apple Photos assets.
+
+### Open questions (minor — defaults above apply until product revisits)
+- Whether **dissolve** should offer “promote members to standalone Home tiles” (not in v1 default).
+- Exact **iconography** for the collection badge (SF Symbol vs custom).
+
+---
+
 ## How to use this document
 
 1. **Work through phases in order.** Each phase builds on the last. Do not skip ahead.
@@ -136,6 +223,9 @@ Keep this table in sync with the Cavira codebase as phases finish. Each phase se
 | 10 — Settings & storage | ✅ Complete |
 | 11 — Pinning (no ProfileView) | ✅ Complete |
 | 12 — Polish & QA | ✅ Complete |
+| 13 — Video-first Home refinements | 🟡 Planned |
+| 14 — Videos in Stories | 🟡 Planned |
+| 15 — Home collections | ✅ Complete |
 
 ---
 
@@ -179,6 +269,7 @@ Keep this table in sync with the Cavira codebase as phases finish. Each phase se
 
 #### Home tab (Instagram-style “digital album”)
 - **Source of truth:** Home shows **only the user-created subset** the user has chosen for their Cavira **digital album** — **not** the whole Apple Photos library. **This curation is the main point of the app.**
+- **Collections (Phase 15 — shipped):** Users may group **multiple stills / Live Photos** into a **named Home collection** that appears as **one tile** (cover = first ordered image member, badge top-trailing). **Stories** do not use this grouping. See **Phase 15 — Home collections**.
 - **Photos + videos:** the same digital album holds **still images and videos** side by side (Instagram-style: user can add either from the library into the same grid / timeline). **`PhotoEntry`** records the asset kind (see **Phase 1 / `PhotoEntry`** — `mediaKind` + Live flag).
 - **Live Photos:** on **Grid** and **Timeline**, show the **still poster frame** only (like a normal photo cell). The **Videos** segment lists **video assets only** (no Live Photo rows there). In **Photo detail**, support **Live Photo playback** (press-and-hold / motion like **Apple Photos**) using `PHLivePhoto` / `PHLivePhotoView` where the asset is live — still no duplicate files; all motion data stays in the system library.
 - **Grid \| Timeline \| Videos:** **Grid** and **Timeline** show **photos-only**. **Videos** shows **videos-only** (see Phase 13 for the locked rules and segment-aware import).
@@ -445,6 +536,20 @@ struct StickerOverlay: Codable, Identifiable {
 ```
 
 **Repo note:** If the on-disk model predates `mediaKind` / `isLivePhoto`, add them when implementing **Phase 4** (with a lightweight migration / dev reset as appropriate for your branch).
+
+**Repo (Phase 15):** `PhotoEntry` includes optional **`homeCollection`** (inverse of **`HomeCollection.entries`**) and **`collectionMemberOrder: Int?`** for stable paging/reorder. Members typically **`isInHomeAlbum == false`**; the collection tile holds the Home slot.
+
+### HomeCollection.swift (@Model) — Phase 15 (shipped)
+```swift
+@Model final class HomeCollection {
+    var id: UUID
+    var title: String
+    var homeOrderIndex: Int?
+    var createdDate: Date
+    @Relationship(deleteRule: .nullify) var entries: [PhotoEntry] = []
+    // Helpers: coverEntry, orderedEntries — see repo
+}
+```
 
 ### StorySlide.swift (@Model)
 ```swift

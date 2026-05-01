@@ -15,6 +15,11 @@
 		0A0D5B5E2B8A8A2D00A0A001 /* LocationTag.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A0D5B542B8A8A2D00A0A001 /* LocationTag.swift */; };
 		0A0D5B5F2B8A8A2D00A0A001 /* PersonTag.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A0D5B552B8A8A2D00A0A001 /* PersonTag.swift */; };
 		0A0D5B602B8A8A2D00A0A001 /* PhotoEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A0D5B562B8A8A2D00A0A001 /* PhotoEntry.swift */; };
+		F15HC022B8A8A2D00A0A001 /* HomeCollection.swift in Sources */ = {isa = PBXBuildFile; fileRef = F15HC012B8A8A2D00A0A001 /* HomeCollection.swift */; };
+		F15HD022B8A8A2D00A0A001 /* HomeDestination.swift in Sources */ = {isa = PBXBuildFile; fileRef = F15HD012B8A8A2D00A0A001 /* HomeDestination.swift */; };
+		F15HA022B8A8A2D00A0A001 /* HomeAlbumRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = F15HA012B8A8A2D00A0A001 /* HomeAlbumRow.swift */; };
+		F15HV022B8A8A2D00A0A001 /* HomeCollectionViewer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F15HV012B8A8A2D00A0A001 /* HomeCollectionViewer.swift */; };
+		F15SB022B8A8A2D00A0A001 /* SearchBrowseDestination.swift in Sources */ = {isa = PBXBuildFile; fileRef = F15SB012B8A8A2D00A0A001 /* SearchBrowseDestination.swift */; };
 		0A0D5B612B8A8A2D00A0A001 /* Event.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A0D5B572B8A8A2D00A0A001 /* Event.swift */; };
 		0A0D5B622B8A8A2D00A0A001 /* StorySlide.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A0D5B582B8A8A2D00A0A001 /* StorySlide.swift */; };
 		0A0D5B632B8A8A2D00A0A001 /* Story.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A0D5B592B8A8A2D00A0A001 /* Story.swift */; };
@@ -82,6 +87,11 @@
 		0A0D5B542B8A8A2D00A0A001 /* LocationTag.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationTag.swift; sourceTree = "<group>"; };
 		0A0D5B552B8A8A2D00A0A001 /* PersonTag.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonTag.swift; sourceTree = "<group>"; };
 		0A0D5B562B8A8A2D00A0A001 /* PhotoEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoEntry.swift; sourceTree = "<group>"; };
+		F15HC012B8A8A2D00A0A001 /* HomeCollection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeCollection.swift; sourceTree = "<group>"; };
+		F15HD012B8A8A2D00A0A001 /* HomeDestination.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeDestination.swift; sourceTree = "<group>"; };
+		F15HA012B8A8A2D00A0A001 /* HomeAlbumRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeAlbumRow.swift; sourceTree = "<group>"; };
+		F15HV012B8A8A2D00A0A001 /* HomeCollectionViewer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeCollectionViewer.swift; sourceTree = "<group>"; };
+		F15SB012B8A8A2D00A0A001 /* SearchBrowseDestination.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchBrowseDestination.swift; sourceTree = "<group>"; };
 		0A0D5B572B8A8A2D00A0A001 /* Event.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Event.swift; sourceTree = "<group>"; };
 		0A0D5B582B8A8A2D00A0A001 /* StorySlide.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorySlide.swift; sourceTree = "<group>"; };
 		0A0D5B592B8A8A2D00A0A001 /* Story.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Story.swift; sourceTree = "<group>"; };
@@ -201,6 +211,7 @@
 				0A0D5B542B8A8A2D00A0A001 /* LocationTag.swift */,
 				0A0D5B552B8A8A2D00A0A001 /* PersonTag.swift */,
 				0A0D5B562B8A8A2D00A0A001 /* PhotoEntry.swift */,
+				F15HC012B8A8A2D00A0A001 /* HomeCollection.swift */,
 				0A0D5B572B8A8A2D00A0A001 /* Event.swift */,
 				0A0D5B582B8A8A2D00A0A001 /* StorySlide.swift */,
 				0A0D5B592B8A8A2D00A0A001 /* Story.swift */,
@@ -266,6 +277,9 @@
 			isa = PBXGroup;
 			children = (
 				0A0D5B9032B8A8A2D00A0A001 /* HomeScreen.swift */,
+				F15HD012B8A8A2D00A0A001 /* HomeDestination.swift */,
+				F15HA012B8A8A2D00A0A001 /* HomeAlbumRow.swift */,
+				F15HV012B8A8A2D00A0A001 /* HomeCollectionViewer.swift */,
 				0A0D5B9042B8A8A2D00A0A001 /* HomeTab.swift */,
 				F100PH0012B8A8A2D00A0A001 /* GridView.swift */,
 				F100PH0022B8A8A2D00A0A001 /* AlbumTimelineView.swift */,
@@ -309,6 +323,7 @@
 			isa = PBXGroup;
 			children = (
 				0A0D5B9092B8A8A2D00A0A001 /* SearchView.swift */,
+				F15SB012B8A8A2D00A0A001 /* SearchBrowseDestination.swift */,
 				0A0D5B90A2B8A8A2D00A0A001 /* SearchTab.swift */,
 			);
 			path = Search;
@@ -408,6 +423,9 @@
 				0A0D5B9112B8A8A2D00A0A001 /* RootView.swift in Sources */,
 				0A0D5B9122B8A8A2D00A0A001 /* CaviraPreviewSupport.swift in Sources */,
 				0A0D5B9132B8A8A2D00A0A001 /* HomeScreen.swift in Sources */,
+				F15HD022B8A8A2D00A0A001 /* HomeDestination.swift in Sources */,
+				F15HA022B8A8A2D00A0A001 /* HomeAlbumRow.swift in Sources */,
+				F15HV022B8A8A2D00A0A001 /* HomeCollectionViewer.swift in Sources */,
 				F100HM0122B8A8A2D00A0A001 /* PHAssetThumbnailView.swift in Sources */,
 				0A0D5B9142B8A8A2D00A0A001 /* HomeTab.swift in Sources */,
 				E01D5B0012B8A8A2D00A0A001 /* PhotoPickerRepresentable.swift in Sources */,
@@ -440,6 +458,7 @@
 				0A0D5B9452D8C8A2D00A0A001 /* StickerPickerSheet.swift in Sources */,
 				0A0D5B9472D8C8A2D00A0A001 /* CameraCaptureView.swift in Sources */,
 				0A0D5B9192B8A8A2D00A0A001 /* SearchView.swift in Sources */,
+				F15SB022B8A8A2D00A0A001 /* SearchBrowseDestination.swift in Sources */,
 				0A0D5B91A2B8A8A2D00A0A001 /* SearchTab.swift in Sources */,
 				0A0D5B91B2B8A8A2D00A0A001 /* SettingsView.swift in Sources */,
 				0A0D5B91C2B8A8A2D00A0A001 /* SettingsTab.swift in Sources */,
@@ -451,6 +470,7 @@
 				0A0D5B5E2B8A8A2D00A0A001 /* LocationTag.swift in Sources */,
 				0A0D5B5F2B8A8A2D00A0A001 /* PersonTag.swift in Sources */,
 				0A0D5B602B8A8A2D00A0A001 /* PhotoEntry.swift in Sources */,
+				F15HC022B8A8A2D00A0A001 /* HomeCollection.swift in Sources */,
 				0A0D5B612B8A8A2D00A0A001 /* Event.swift in Sources */,
 				0A0D5B622B8A8A2D00A0A001 /* StorySlide.swift in Sources */,
 				0A0D5B632B8A8A2D00A0A001 /* Story.swift in Sources */,

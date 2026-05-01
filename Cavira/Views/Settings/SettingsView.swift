@@ -7,6 +7,8 @@ struct SettingsView: View {
     @State private var settings: AppSettings?
     @State private var storageUsedBytes: Int64 = 0
     @State private var showThemePicker = false
+    @State private var showResetSettingsConfirm = false
+    @State private var showDeleteAllDataConfirm = false
 
     var body: some View {
         Form {
@@ -53,7 +55,7 @@ struct SettingsView: View {
                         showThemePicker = true
                     } label: {
                         HStack(spacing: 10) {
-                            themeSwatch(themePaletteBinding.wrappedValue.swatchColor)
+                            themeSwatch(themePaletteBinding.wrappedValue.themePickerSwatchColor)
                             Text(themePaletteBinding.wrappedValue.displayName)
                                 .foregroundStyle(CaviraTheme.textTertiary)
                             Image(systemName: "chevron.right")
@@ -74,19 +76,35 @@ struct SettingsView: View {
             }
 
             Section {
+                Button {
+                    showResetSettingsConfirm = true
+                } label: {
+                    Text("Reset settings")
+                        .foregroundStyle(CaviraTheme.textPrimary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                Button(role: .destructive) {
+                    showDeleteAllDataConfirm = true
+                } label: {
+                    Text("Delete all Cavira data")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            } header: {
+                Text("Data")
+                    .foregroundStyle(CaviraTheme.textSecondary)
+            } footer: {
+                Text("Reset restores default preferences only. Delete removes stories, Home organisation, tags, and notes from Cavira. Nothing is removed from Apple Photos.")
+                    .font(CaviraTheme.Typography.caption)
+                    .foregroundStyle(CaviraTheme.textTertiary)
+            }
+
+            Section {
                 HStack {
                     Text("App")
                         .foregroundStyle(CaviraTheme.textPrimary)
                     Spacer()
                     Text("Cavira")
-                        .foregroundStyle(CaviraTheme.textTertiary)
-                }
-
-                HStack {
-                    Text("Version")
-                        .foregroundStyle(CaviraTheme.textPrimary)
-                    Spacer()
-                    Text(appVersionLabel)
                         .foregroundStyle(CaviraTheme.textTertiary)
                 }
 
@@ -122,6 +140,47 @@ struct SettingsView: View {
             )
             .presentationDetents([.fraction(0.75), .large])
             .presentationDragIndicator(.visible)
+        }
+        .alert("Reset settings?", isPresented: $showResetSettingsConfirm) {
+            Button("Cancel", role: .cancel) {}
+            Button("Reset") {
+                performResetSettings()
+            }
+        } message: {
+            Text("This restores the default home view, appearance, and theme. Your stories and library organisation are not affected.")
+        }
+        .alert("Delete all Cavira data?", isPresented: $showDeleteAllDataConfirm) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete everything", role: .destructive) {
+                performDeleteAllData()
+            }
+        } message: {
+            Text("This permanently removes stories, Home album layout, tags, and notes stored in Cavira. Photos and videos in Apple Photos are not deleted.")
+        }
+    }
+
+    private func performResetSettings() {
+        do {
+            try DataService.resetSettingsToDefaults(context: modelContext)
+            let s = DataService.getOrCreateSettings(context: modelContext)
+            settings = s
+            ThemeStore.shared.apply(s.themePalette ?? .ranger)
+            storageUsedBytes = Int64(appServices?.photoStorage.totalStorageUsed() ?? 0)
+        } catch {
+            // SwiftData save failures are rare; no separate UI in v1.
+        }
+    }
+
+    private func performDeleteAllData() {
+        guard let photoStorage = appServices?.photoStorage else { return }
+        do {
+            try DataService.deleteAllCaviraData(context: modelContext, photoStorage: photoStorage)
+            let s = DataService.getOrCreateSettings(context: modelContext)
+            settings = s
+            ThemeStore.shared.apply(s.themePalette ?? .ranger)
+            storageUsedBytes = Int64(photoStorage.totalStorageUsed())
+        } catch {
+            // Rare; user can retry.
         }
     }
 
@@ -177,15 +236,6 @@ struct SettingsView: View {
 
     private var storageUsedLabel: String {
         ByteCountFormatter.string(fromByteCount: storageUsedBytes, countStyle: .file)
-    }
-
-    private var appVersionLabel: String {
-        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
-        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String
-        if let version, let build {
-            return "\(version) (\(build))"
-        }
-        return version ?? "—"
     }
 }
 

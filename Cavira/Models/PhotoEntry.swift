@@ -26,6 +26,8 @@ final class PhotoEntry {
     var homeOrderIndex: Int?
     /// Manual ordering for the Videos segment (optional). Kept separate from `homeOrderIndex` so photos and videos can be reordered independently.
     var videoOrderIndex: Int?
+    /// Order inside `homeCollection` (0-based). Nil when not in a collection.
+    var collectionMemberOrder: Int?
     var capturedDate: Date
     var loggedDate: Date
     /// User-facing title for this photo/video (optional, set during import or later in Edit).
@@ -37,6 +39,7 @@ final class PhotoEntry {
     var peopleTagPlacementsData: Data?
     var customTags: [String] = []
     @Relationship(inverse: \Event.photos) var event: Event?
+    @Relationship(inverse: \HomeCollection.entries) var homeCollection: HomeCollection?
 
     var textOverlaysData: Data?
     var stickerOverlaysData: Data?
@@ -81,6 +84,7 @@ final class PhotoEntry {
         isInHomeAlbum: Bool = true,
         homeOrderIndex: Int? = nil,
         videoOrderIndex: Int? = nil,
+        collectionMemberOrder: Int? = nil,
         capturedDate: Date,
         loggedDate: Date = Date(),
         title: String? = nil,
@@ -90,6 +94,7 @@ final class PhotoEntry {
         peopleTagPlacements: [PersonTagPlacement] = [],
         customTags: [String] = [],
         event: Event? = nil,
+        homeCollection: HomeCollection? = nil,
         textOverlays: [TextOverlay] = [],
         stickerOverlays: [StickerOverlay] = []
     ) {
@@ -102,6 +107,7 @@ final class PhotoEntry {
         self.isInHomeAlbum = isInHomeAlbum
         self.homeOrderIndex = homeOrderIndex
         self.videoOrderIndex = videoOrderIndex
+        self.collectionMemberOrder = collectionMemberOrder
         self.capturedDate = capturedDate
         self.loggedDate = loggedDate
         self.title = title
@@ -111,6 +117,7 @@ final class PhotoEntry {
         self.peopleTagPlacementsData = try? JSONEncoder().encode(peopleTagPlacements)
         self.customTags = customTags
         self.event = event
+        self.homeCollection = homeCollection
         self.textOverlaysData = try? JSONEncoder().encode(textOverlays)
         self.stickerOverlaysData = try? JSONEncoder().encode(stickerOverlays)
     }

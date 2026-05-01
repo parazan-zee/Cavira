@@ -5,6 +5,115 @@ import SwiftData
 import SwiftUI
 import UIKit
 
+// MARK: - Share & home removal (shared by detail + collection pager chrome)
+
+private enum PhotoDetailShareError: LocalizedError {
+    case assetUnavailable
+    case exportFailed
+
+    var errorDescription: String? {
+        switch self {
+        case .assetUnavailable:
+            return "This item is no longer available in your Photos library."
+        case .exportFailed:
+            return "We couldn’t prepare this item for sharing."
+        }
+    }
+}
+
+private enum PhotoDetailCommandHelpers {
+    @MainActor
+    static func buildShareItems(entry: PhotoEntry, stillImage: UIImage?, appServices: AppServices?) async throws -> [Any] {
+        guard let services = appServices,
+              let lid = entry.localIdentifier,
+              let asset = services.photoLibrary.asset(for: lid)
+        else {
+            throw PhotoDetailShareError.assetUnavailable
+        }
+
+        if let url = try await exportPrimaryResourceToTempURL(asset: asset) {
+            return [url]
+        }
+
+        if let stillImage {
+            if let url = try writeJPEGToTempURL(image: stillImage, baseName: "cavira") {
+                return [url]
+            }
+            return [stillImage]
+        }
+
+        throw PhotoDetailShareError.exportFailed
+    }
+
+    @MainActor
+    static func exportPrimaryResourceToTempURL(asset: PHAsset) async throws -> URL? {
+        let resources = PHAssetResource.assetResources(for: asset)
+        let primary: PHAssetResource? = {
+            if asset.mediaType == .video {
+                return resources.first(where: { $0.type == .video }) ?? resources.first
+            } else {
+                return resources.first(where: { $0.type == .photo }) ?? resources.first
+            }
+        }()
+
+        guard let resource = primary else { return nil }
+
+        let ext: String = {
+            let orig = (resource.originalFilename as NSString).pathExtension
+            return orig.isEmpty ? (asset.mediaType == .video ? "mov" : "jpg") : orig
+        }()
+
+        let fileName = "cavira-share-\(UUID().uuidString).\(ext)"
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+
+        try? FileManager.default.removeItem(at: url)
+
+        return try await withCheckedThrowingContinuation { continuation in
+            let options = PHAssetResourceRequestOptions()
+            options.isNetworkAccessAllowed = true
+            PHAssetResourceManager.default().writeData(for: resource, toFile: url, options: options) { error in
+                DispatchQueue.main.async {
+                    if let error {
+                        continuation.resume(throwing: error)
+                    } else {
+                        continuation.resume(returning: url)
+                    }
+                }
+            }
+        }
+    }
+
+    static func writeJPEGToTempURL(image: UIImage, baseName: String) throws -> URL? {
+        guard let data = image.jpegData(compressionQuality: 0.92) else { return nil }
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(baseName)-\(UUID().uuidString).jpg")
+        try data.write(to: url, options: [.atomic])
+        return url
+    }
+
+    @MainActor
+    static func deleteHomeCollection(for entry: PhotoEntry, modelContext: ModelContext, services: AppServices, dismiss: DismissAction) {
+        guard let coll = entry.homeCollection else { return }
+        let members = coll.entries
+        for m in members {
+            m.homeCollection = nil
+            m.collectionMemberOrder = nil
+            m.isInHomeAlbum = false
+        }
+        modelContext.delete(coll)
+        try? modelContext.save()
+        services.photoImageLoader.clearCache()
+        dismiss()
+    }
+
+    @MainActor
+    static func removeStandaloneFromHomeAlbum(entry: PhotoEntry, modelContext: ModelContext, services: AppServices, dismiss: DismissAction) {
+        entry.isInHomeAlbum = false
+        try? modelContext.save()
+        services.photoImageLoader.clearCache()
+        dismiss()
+    }
+}
+
 /// Full-screen detail: Instagram-style push from grid/timeline; **Back** returns to the album (no swipe-dismiss requirement).
 struct PhotoDetailView: View {
     @Environment(\.appServices) private var appServices
@@ -12,6 +121,10 @@ struct PhotoDetailView: View {
     @Environment(\.dismiss) private var dismiss
 
     let entry: PhotoEntry
+    /// When true (Home collection pager), media uses tap-only interaction for `TabView` paging; page index is shown by the parent.
+    var isEmbeddedInCollectionPager: Bool = false
+    /// When non-nil, “Place people tags” is driven by the parent’s toolbar overflow menu (collection pager only).
+    var externalPlacingPeopleTag: Binding<Bool>? = nil
 
     @State private var stillImage: UIImage?
     @State private var livePhoto: PHLivePhoto?
@@ -30,75 +143,92 @@ struct PhotoDetailView: View {
     @State private var showPlacePersonDialog = false
     @State private var mediaContainerSize: CGSize = .zero
 
-    private static let detailDateFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "d MMMM yyyy"
-        return f
-    }()
-
-    private var dateTitle: String {
-        Self.detailDateFormatter.string(from: entry.capturedDate)
+    private var placingPeopleTagBinding: Binding<Bool> {
+        if let externalPlacingPeopleTag {
+            return externalPlacingPeopleTag
+        }
+        return $isPlacingPeopleTag
     }
 
-    private var locationSubtitle: String? {
-        entry.locationTag?.name
+    private var isPlacingPeopleTagActive: Bool {
+        placingPeopleTagBinding.wrappedValue
+    }
+
+    private func handleMediaChromeInteraction(at location: CGPoint) {
+        if isPlacingPeopleTagActive {
+            pendingPlacementPoint = location
+            showPlacePersonDialog = true
+            return
+        }
+        withAnimation(.easeInOut(duration: 0.18)) {
+            showPeopleOverlays.toggle()
+        }
+    }
+
+    @ViewBuilder
+    private func mediaInteractionChrome<V: View>(_ content: V) -> some View {
+        if isEmbeddedInCollectionPager {
+            // Tap only in the collection pager so horizontal swipes are left to `TabView` paging.
+            content.simultaneousGesture(
+                SpatialTapGesture()
+                    .onEnded { event in
+                        handleMediaChromeInteraction(at: event.location)
+                    }
+            )
+        } else {
+            content.gesture(
+                DragGesture(minimumDistance: 0)
+                    .onEnded { value in
+                        handleMediaChromeInteraction(at: value.location)
+                    }
+            )
+        }
     }
 
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            Group {
-                if entry.mediaKind == .video {
-                    if let videoPlayer {
-                        VideoPlayer(player: videoPlayer)
+            mediaInteractionChrome(
+                Group {
+                    if entry.mediaKind == .video {
+                        if let videoPlayer {
+                            VideoPlayer(player: videoPlayer)
+                                .ignoresSafeArea()
+                        } else if loadFailed {
+                            missingAssetView
+                        } else {
+                            ProgressView()
+                                .tint(CaviraTheme.accent)
+                        }
+                    } else if entry.isLivePhoto, let livePhoto {
+                        LivePhotoDetailRepresentable(livePhoto: livePhoto)
                             .ignoresSafeArea()
+                    } else if let stillImage {
+                        Image(uiImage: stillImage)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else if loadFailed {
                         missingAssetView
                     } else {
                         ProgressView()
                             .tint(CaviraTheme.accent)
                     }
-                } else if entry.isLivePhoto, let livePhoto {
-                    LivePhotoDetailRepresentable(livePhoto: livePhoto)
-                        .ignoresSafeArea()
-                } else if let stillImage {
-                    Image(uiImage: stillImage)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if loadFailed {
-                    missingAssetView
-                } else {
-                    ProgressView()
-                        .tint(CaviraTheme.accent)
                 }
-            }
-            .contentShape(Rectangle())
-            .background(
-                GeometryReader { proxy in
-                    Color.clear
-                        .onAppear { mediaContainerSize = proxy.size }
-                        .onChange(of: proxy.size) { _, newValue in mediaContainerSize = newValue }
-                }
-            )
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onEnded { value in
-                        if isPlacingPeopleTag {
-                            pendingPlacementPoint = value.location
-                            showPlacePersonDialog = true
-                            return
-                        }
-                        withAnimation(.easeInOut(duration: 0.18)) {
-                            showPeopleOverlays.toggle()
-                        }
+                .contentShape(Rectangle())
+                .background(
+                    GeometryReader { proxy in
+                        Color.clear
+                            .onAppear { mediaContainerSize = proxy.size }
+                            .onChange(of: proxy.size) { _, newValue in mediaContainerSize = newValue }
                     }
+                )
             )
             .overlay {
                 if showPeopleOverlays && !entry.peopleTags.isEmpty {
                     Group {
-                        if isPlacingPeopleTag {
+                        if isPlacingPeopleTagActive {
                             peopleTagsOverlayPositioned
                         } else {
                             peopleTagsOverlayStacked
@@ -113,47 +243,50 @@ struct PhotoDetailView: View {
         .toolbarColorScheme(.dark, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbar {
-            ToolbarItem(placement: .principal) {
-                VStack(spacing: 2) {
-                    Text(dateTitle)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.white.opacity(0.92))
-                    if let locationSubtitle, !locationSubtitle.isEmpty {
-                        Text(locationSubtitle)
-                            .font(.caption)
-                            .foregroundStyle(.white.opacity(0.75))
-                            .lineLimit(1)
-                    }
+            if !isEmbeddedInCollectionPager {
+                ToolbarItem(placement: .principal) {
+                    PhotoDetailNavChrome.principalToolbarContent(for: entry)
                 }
-                .accessibilityElement(children: .combine)
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                Menu {
-                    Button("Edit", systemImage: "pencil") {
-                        showEditTags = true
-                    }
-                    if !entry.peopleTags.isEmpty {
-                        Button(isPlacingPeopleTag ? "Done placing people tags" : "Place people tags", systemImage: "person.crop.rectangle.badge.plus") {
-                            isPlacingPeopleTag.toggle()
-                            if isPlacingPeopleTag {
-                                withAnimation(.easeInOut(duration: 0.18)) {
-                                    showPeopleOverlays = true
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Button("Edit", systemImage: "pencil") {
+                            showEditTags = true
+                        }
+                        if !entry.peopleTags.isEmpty {
+                            Button(isPlacingPeopleTagActive ? "Done placing people tags" : "Place people tags", systemImage: "person.crop.rectangle.badge.plus") {
+                                let next = !placingPeopleTagBinding.wrappedValue
+                                placingPeopleTagBinding.wrappedValue = next
+                                if next {
+                                    withAnimation(.easeInOut(duration: 0.18)) {
+                                        showPeopleOverlays = true
+                                    }
                                 }
                             }
                         }
+                        Button("Share", systemImage: "square.and.arrow.up") {
+                            beginShare()
+                        }
+                        .disabled(appServices == nil)
+                        Divider()
+                        Button(
+                            entry.homeCollection != nil ? "Delete collection" : "Remove from album",
+                            systemImage: "rectangle.badge.minus",
+                            role: .destructive
+                        ) {
+                            showRemoveConfirm = true
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
                     }
-                    Button("Share", systemImage: "square.and.arrow.up") {
-                        beginShare()
-                    }
-                    .disabled(appServices == nil)
-                    Divider()
-                    Button("Remove from album", systemImage: "rectangle.badge.minus", role: .destructive) {
-                        showRemoveConfirm = true
-                    }
-                } label: {
-                    Image(systemName: "ellipsis.circle")
+                    .accessibilityLabel("More")
                 }
-                .accessibilityLabel("More")
+            }
+        }
+        .onChange(of: isPlacingPeopleTagActive) { _, newValue in
+            if newValue {
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    showPeopleOverlays = true
+                }
             }
         }
         .confirmationDialog("Place tag", isPresented: $showPlacePersonDialog, titleVisibility: .visible) {
@@ -189,16 +322,28 @@ struct PhotoDetailView: View {
                 .presentationDragIndicator(.visible)
         }
         .confirmationDialog(
-            "Remove from Cavira?",
+            entry.homeCollection != nil ? "Delete this collection?" : "Remove from Cavira?",
             isPresented: $showRemoveConfirm,
             titleVisibility: .visible
         ) {
-            Button("Remove from album", role: .destructive) {
-                removeFromAlbum()
+            if entry.homeCollection != nil {
+                Button("Delete collection", role: .destructive) {
+                    guard let services = appServices else { return }
+                    PhotoDetailCommandHelpers.deleteHomeCollection(for: entry, modelContext: modelContext, services: services, dismiss: dismiss)
+                }
+            } else {
+                Button("Remove from album", role: .destructive) {
+                    guard let services = appServices else { return }
+                    PhotoDetailCommandHelpers.removeStandaloneFromHomeAlbum(entry: entry, modelContext: modelContext, services: services, dismiss: dismiss)
+                }
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This only removes the item from your Cavira album. Nothing is deleted from Apple Photos.")
+            Text(
+                entry.homeCollection != nil
+                    ? "The collection disappears from Home and all its items are removed from your Cavira album. Nothing is deleted from Apple Photos."
+                    : "This only removes the item from your Cavira album. Nothing is deleted from Apple Photos."
+            )
         }
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 0) {
@@ -229,7 +374,7 @@ struct PhotoDetailView: View {
     private func beginShare() {
         Task { @MainActor in
             do {
-                let items = try await buildShareItems()
+                let items = try await PhotoDetailCommandHelpers.buildShareItems(entry: entry, stillImage: stillImage, appServices: appServices)
                 if items.isEmpty {
                     shareErrorMessage = "Unable to share this item."
                     showShareErrorAlert = true
@@ -242,92 +387,6 @@ struct PhotoDetailView: View {
                 showShareErrorAlert = true
             }
         }
-    }
-
-    private enum ShareError: LocalizedError {
-        case assetUnavailable
-        case exportFailed
-
-        var errorDescription: String? {
-            switch self {
-            case .assetUnavailable:
-                return "This item is no longer available in your Photos library."
-            case .exportFailed:
-                return "We couldn’t prepare this item for sharing."
-            }
-        }
-    }
-
-    @MainActor
-    private func buildShareItems() async throws -> [Any] {
-        guard let services = appServices,
-              let lid = entry.localIdentifier,
-              let asset = services.photoLibrary.asset(for: lid)
-        else {
-            throw ShareError.assetUnavailable
-        }
-
-        if let url = try await exportPrimaryResourceToTempURL(asset: asset) {
-            return [url]
-        }
-
-        // Fallback: share the currently loaded still image (JPEG) if available.
-        if let stillImage {
-            if let url = try writeJPEGToTempURL(image: stillImage, baseName: "cavira") {
-                return [url]
-            }
-            return [stillImage]
-        }
-
-        throw ShareError.exportFailed
-    }
-
-    /// Exports the primary Photos resource (image/video) to a temp file for sharing.
-    @MainActor
-    private func exportPrimaryResourceToTempURL(asset: PHAsset) async throws -> URL? {
-        let resources = PHAssetResource.assetResources(for: asset)
-        let primary: PHAssetResource? = {
-            // Prefer a video resource for videos; otherwise the best photo resource.
-            if asset.mediaType == .video {
-                return resources.first(where: { $0.type == .video }) ?? resources.first
-            } else {
-                return resources.first(where: { $0.type == .photo }) ?? resources.first
-            }
-        }()
-
-        guard let resource = primary else { return nil }
-
-        let ext: String = {
-            let orig = (resource.originalFilename as NSString).pathExtension
-            return orig.isEmpty ? (asset.mediaType == .video ? "mov" : "jpg") : orig
-        }()
-
-        let fileName = "cavira-share-\(UUID().uuidString).\(ext)"
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
-
-        // Ensure no stale file exists.
-        try? FileManager.default.removeItem(at: url)
-
-        return try await withCheckedThrowingContinuation { continuation in
-            let options = PHAssetResourceRequestOptions()
-            options.isNetworkAccessAllowed = true
-            PHAssetResourceManager.default().writeData(for: resource, toFile: url, options: options) { error in
-                DispatchQueue.main.async {
-                    if let error {
-                        continuation.resume(throwing: error)
-                    } else {
-                        continuation.resume(returning: url)
-                    }
-                }
-            }
-        }
-    }
-
-    private func writeJPEGToTempURL(image: UIImage, baseName: String) throws -> URL? {
-        guard let data = image.jpegData(compressionQuality: 0.92) else { return nil }
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(baseName)-\(UUID().uuidString).jpg")
-        try data.write(to: url, options: [.atomic])
-        return url
     }
 
     private var peopleTagsOverlayPositioned: some View {
@@ -488,14 +547,138 @@ struct PhotoDetailView: View {
         }
     }
 
-    private func removeFromAlbum() {
-        guard let services = appServices else { return }
-        // Important: removing from the Home album must not delete the SwiftData row,
-        // because Stories can reference the same `PhotoEntry`.
-        entry.isInHomeAlbum = false
-        try? modelContext.save()
-        services.photoImageLoader.clearCache()
-        dismiss()
+}
+
+/// Toolbar ⋯ menu for the collection pager only. Lives on `HomeCollectionViewer` so it isn’t inside a `TabView` page (avoids swipe / transition glitches).
+struct PhotoDetailPagerOverflowMenu: View {
+    let entry: PhotoEntry
+    @Binding var placingPeopleTags: Bool
+
+    @Environment(\.appServices) private var appServices
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var showRemoveConfirm = false
+    @State private var showEditTags = false
+    @State private var showShareSheet = false
+    @State private var shareItems: [Any] = []
+    @State private var shareErrorMessage: String?
+    @State private var showShareErrorAlert = false
+
+    var body: some View {
+        Menu {
+            Button("Edit", systemImage: "pencil") {
+                showEditTags = true
+            }
+            if !entry.peopleTags.isEmpty {
+                Button(placingPeopleTags ? "Done placing people tags" : "Place people tags", systemImage: "person.crop.rectangle.badge.plus") {
+                    let next = !placingPeopleTags
+                    placingPeopleTags = next
+                }
+            }
+            Button("Share", systemImage: "square.and.arrow.up") {
+                beginShare()
+            }
+            .disabled(appServices == nil)
+            Divider()
+            Button(
+                entry.homeCollection != nil ? "Delete collection" : "Remove from album",
+                systemImage: "rectangle.badge.minus",
+                role: .destructive
+            ) {
+                showRemoveConfirm = true
+            }
+        } label: {
+            Image(systemName: "ellipsis.circle")
+        }
+        .accessibilityLabel("More")
+        .sheet(isPresented: $showShareSheet) {
+            ActivityView(activityItems: shareItems)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+        }
+        .alert("Share", isPresented: $showShareErrorAlert) {
+            Button("OK", role: .cancel) {
+                shareErrorMessage = nil
+            }
+        } message: {
+            Text(shareErrorMessage ?? "Unable to share this item.")
+        }
+        .sheet(isPresented: $showEditTags) {
+            EditTagsSheet(entry: entry)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+        }
+        .confirmationDialog(
+            entry.homeCollection != nil ? "Delete this collection?" : "Remove from Cavira?",
+            isPresented: $showRemoveConfirm,
+            titleVisibility: .visible
+        ) {
+            if entry.homeCollection != nil {
+                Button("Delete collection", role: .destructive) {
+                    guard let services = appServices else { return }
+                    PhotoDetailCommandHelpers.deleteHomeCollection(for: entry, modelContext: modelContext, services: services, dismiss: dismiss)
+                }
+            } else {
+                Button("Remove from album", role: .destructive) {
+                    guard let services = appServices else { return }
+                    PhotoDetailCommandHelpers.removeStandaloneFromHomeAlbum(entry: entry, modelContext: modelContext, services: services, dismiss: dismiss)
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(
+                entry.homeCollection != nil
+                    ? "The collection disappears from Home and all its items are removed from your Cavira album. Nothing is deleted from Apple Photos."
+                    : "This only removes the item from your Cavira album. Nothing is deleted from Apple Photos."
+            )
+        }
+    }
+
+    @MainActor
+    private func beginShare() {
+        Task { @MainActor in
+            do {
+                let items = try await PhotoDetailCommandHelpers.buildShareItems(entry: entry, stillImage: nil, appServices: appServices)
+                if items.isEmpty {
+                    shareErrorMessage = "Unable to share this item."
+                    showShareErrorAlert = true
+                    return
+                }
+                shareItems = items
+                showShareSheet = true
+            } catch {
+                shareErrorMessage = error.localizedDescription
+                showShareErrorAlert = true
+            }
+        }
+    }
+}
+
+// MARK: - Shared detail navigation chrome
+
+/// Centered date/location stack for the photo detail bar. **Standalone:** `PhotoDetailView` puts this in `.principal`. **Collection pager:** `HomeCollectionViewer` owns the toolbar so it isn’t inside `TabView` pages.
+enum PhotoDetailNavChrome {
+    private static let detailDateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "d MMMM yyyy"
+        return f
+    }()
+
+    @ViewBuilder
+    static func principalToolbarContent(for entry: PhotoEntry) -> some View {
+        VStack(spacing: 2) {
+            Text(detailDateFormatter.string(from: entry.capturedDate))
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.92))
+            if let locationSubtitle = entry.locationTag?.name, !locationSubtitle.isEmpty {
+                Text(locationSubtitle)
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.75))
+                    .lineLimit(1)
+            }
+        }
+        .accessibilityElement(children: .combine)
     }
 }
 

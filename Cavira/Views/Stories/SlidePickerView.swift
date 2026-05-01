@@ -448,17 +448,15 @@ struct SlidePickerView<Next: View>: View {
     private func materializeSelectedEntries() -> [PhotoEntry] {
         guard let services = appServices else { return [] }
 
+        // Keep selection-strip order (chronological re-sort moved videos after photos).
         let selectedAssets: [PHAsset] = selectedOrderedLocalIdentifiers.compactMap { lid in
             assets.first(where: { $0.localIdentifier == lid }) ?? services.photoLibrary.asset(for: lid)
         }
-        let sortedAssets = selectedAssets.sorted { (a, b) in
-            (a.creationDate ?? .distantPast) < (b.creationDate ?? .distantPast)
-        }
 
         var entries: [PhotoEntry] = []
-        entries.reserveCapacity(sortedAssets.count)
+        entries.reserveCapacity(selectedAssets.count)
 
-        for asset in sortedAssets {
+        for asset in selectedAssets {
             let lid = asset.localIdentifier
             if let existing = DataService.existingPhotoEntry(localIdentifier: lid, context: modelContext) {
                 entries.append(existing)
