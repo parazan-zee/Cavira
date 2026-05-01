@@ -278,7 +278,6 @@ struct EditTagsSheet: View {
         if let existing = tags.first(where: { $0.contactIdentifier == contact.contactIdentifier }) {
             if entry.peopleTags.contains(where: { $0.id == existing.id }) { return }
             entry.peopleTags.append(existing)
-            ensurePlacementExists(for: existing.id)
             try? modelContext.save()
             return
         }
@@ -291,7 +290,6 @@ struct EditTagsSheet: View {
         modelContext.insert(person)
 
         entry.peopleTags.append(person)
-        ensurePlacementExists(for: person.id)
         try? modelContext.save()
     }
 
@@ -304,7 +302,6 @@ struct EditTagsSheet: View {
         if let existing = tags.first(where: { $0.contactIdentifier == nil && $0.displayName.caseInsensitiveCompare(trimmed) == .orderedSame }) {
             if !entry.peopleTags.contains(where: { $0.id == existing.id }) {
                 entry.peopleTags.append(existing)
-                ensurePlacementExists(for: existing.id)
             }
             freeTextPerson = ""
             try? modelContext.save()
@@ -316,19 +313,10 @@ struct EditTagsSheet: View {
 
         if !entry.peopleTags.contains(where: { $0.id == person.id }) {
             entry.peopleTags.append(person)
-            ensurePlacementExists(for: person.id)
         }
 
         freeTextPerson = ""
         try? modelContext.save()
-    }
-
-    private func ensurePlacementExists(for personID: UUID) {
-        if entry.peopleTagPlacements.contains(where: { $0.personTagId == personID }) { return }
-        var placements = entry.peopleTagPlacements
-        // Default placement = top-left stack start (actual display is stacked by default; placement mode can override).
-        placements.append(PersonTagPlacement(personTagId: personID, x: 0.12, y: 0.14))
-        entry.peopleTagPlacements = placements
     }
 
     private func removePerson(_ person: PersonTag) {

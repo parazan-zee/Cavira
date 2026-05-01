@@ -121,10 +121,8 @@ struct PhotoDetailView: View {
     @Environment(\.dismiss) private var dismiss
 
     let entry: PhotoEntry
-    /// When true (Home collection pager), media uses tap-only interaction for `TabView` paging; page index is shown by the parent.
+    /// When true (Home collection pager), page index / ⋯ are on `HomeCollectionViewer` (not duplicated per tab).
     var isEmbeddedInCollectionPager: Bool = false
-    /// When non-nil, “Place people tags” is driven by the parent’s toolbar overflow menu (collection pager only).
-    var externalPlacingPeopleTag: Binding<Bool>? = nil
 
     @State private var stillImage: UIImage?
     @State private var livePhoto: PHLivePhoto?
@@ -137,51 +135,30 @@ struct PhotoDetailView: View {
     @State private var shareErrorMessage: String?
     @State private var showShareErrorAlert = false
 
-    @State private var showPeopleOverlays = false
-    @State private var isPlacingPeopleTag = false
-    @State private var pendingPlacementPoint: CGPoint?
-    @State private var showPlacePersonDialog = false
-    @State private var mediaContainerSize: CGSize = .zero
-
-    private var placingPeopleTagBinding: Binding<Bool> {
-        if let externalPlacingPeopleTag {
-            return externalPlacingPeopleTag
-        }
-        return $isPlacingPeopleTag
-    }
-
-    private var isPlacingPeopleTagActive: Bool {
-        placingPeopleTagBinding.wrappedValue
-    }
-
-    private func handleMediaChromeInteraction(at location: CGPoint) {
-        if isPlacingPeopleTagActive {
-            pendingPlacementPoint = location
-            showPlacePersonDialog = true
-            return
-        }
-        withAnimation(.easeInOut(duration: 0.18)) {
-            showPeopleOverlays.toggle()
-        }
-    }
-
     @ViewBuilder
-    private func mediaInteractionChrome<V: View>(_ content: V) -> some View {
-        if isEmbeddedInCollectionPager {
-            // Tap only in the collection pager so horizontal swipes are left to `TabView` paging.
-            content.simultaneousGesture(
-                SpatialTapGesture()
-                    .onEnded { event in
-                        handleMediaChromeInteraction(at: event.location)
+    private var peopleTagsTopInset: some View {
+        if !entry.peopleTags.isEmpty {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(entry.peopleTags, id: \.id) { person in
+                        Text(person.displayName)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.white)
+                            .padding(.vertical, 6)
+                            .padding(.horizontal, 10)
+                            .background(.black.opacity(0.55), in: Capsule())
+                            .overlay(
+                                Capsule().stroke(.white.opacity(0.15), lineWidth: 1)
+                            )
+                            .accessibilityLabel("Tagged \(person.displayName)")
                     }
-            )
-        } else {
-            content.gesture(
-                DragGesture(minimumDistance: 0)
-                    .onEnded { value in
-                        handleMediaChromeInteraction(at: value.location)
-                    }
-            )
+                }
+                .padding(.horizontal, 4)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 10)
+            .padding(.horizontal, 12)
+            .background(Color.black.opacity(0.52))
         }
     }
 
@@ -189,54 +166,35 @@ struct PhotoDetailView: View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            mediaInteractionChrome(
-                Group {
-                    if entry.mediaKind == .video {
-                        if let videoPlayer {
-                            VideoPlayer(player: videoPlayer)
-                                .ignoresSafeArea()
-                        } else if loadFailed {
-                            missingAssetView
-                        } else {
-                            ProgressView()
-                                .tint(CaviraTheme.accent)
-                        }
-                    } else if entry.isLivePhoto, let livePhoto {
-                        LivePhotoDetailRepresentable(livePhoto: livePhoto)
+            Group {
+                if entry.mediaKind == .video {
+                    if let videoPlayer {
+                        VideoPlayer(player: videoPlayer)
                             .ignoresSafeArea()
-                    } else if let stillImage {
-                        Image(uiImage: stillImage)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else if loadFailed {
                         missingAssetView
                     } else {
                         ProgressView()
                             .tint(CaviraTheme.accent)
                     }
-                }
-                .contentShape(Rectangle())
-                .background(
-                    GeometryReader { proxy in
-                        Color.clear
-                            .onAppear { mediaContainerSize = proxy.size }
-                            .onChange(of: proxy.size) { _, newValue in mediaContainerSize = newValue }
-                    }
-                )
-            )
-            .overlay {
-                if showPeopleOverlays && !entry.peopleTags.isEmpty {
-                    Group {
-                        if isPlacingPeopleTagActive {
-                            peopleTagsOverlayPositioned
-                        } else {
-                            peopleTagsOverlayStacked
-                        }
-                    }
-                    .transition(.opacity)
+                } else if entry.isLivePhoto, let livePhoto {
+                    LivePhotoDetailRepresentable(livePhoto: livePhoto)
+                        .ignoresSafeArea()
+                } else if let stillImage {
+                    Image(uiImage: stillImage)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if loadFailed {
+                    missingAssetView
+                } else {
+                    ProgressView()
+                        .tint(CaviraTheme.accent)
                 }
             }
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            peopleTagsTopInset
         }
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
@@ -251,17 +209,6 @@ struct PhotoDetailView: View {
                     Menu {
                         Button("Edit", systemImage: "pencil") {
                             showEditTags = true
-                        }
-                        if !entry.peopleTags.isEmpty {
-                            Button(isPlacingPeopleTagActive ? "Done placing people tags" : "Place people tags", systemImage: "person.crop.rectangle.badge.plus") {
-                                let next = !placingPeopleTagBinding.wrappedValue
-                                placingPeopleTagBinding.wrappedValue = next
-                                if next {
-                                    withAnimation(.easeInOut(duration: 0.18)) {
-                                        showPeopleOverlays = true
-                                    }
-                                }
-                            }
                         }
                         Button("Share", systemImage: "square.and.arrow.up") {
                             beginShare()
@@ -281,25 +228,6 @@ struct PhotoDetailView: View {
                     .accessibilityLabel("More")
                 }
             }
-        }
-        .onChange(of: isPlacingPeopleTagActive) { _, newValue in
-            if newValue {
-                withAnimation(.easeInOut(duration: 0.18)) {
-                    showPeopleOverlays = true
-                }
-            }
-        }
-        .confirmationDialog("Place tag", isPresented: $showPlacePersonDialog, titleVisibility: .visible) {
-            ForEach(entry.peopleTags, id: \.id) { p in
-                Button(p.displayName) {
-                    place(person: p)
-                }
-            }
-            Button("Cancel", role: .cancel) {
-                pendingPlacementPoint = nil
-            }
-        } message: {
-            Text("Tap a name to place it here.")
         }
         .task {
             await loadMedia()
@@ -387,77 +315,6 @@ struct PhotoDetailView: View {
                 showShareErrorAlert = true
             }
         }
-    }
-
-    private var peopleTagsOverlayPositioned: some View {
-        GeometryReader { proxy in
-            ZStack {
-                ForEach(entry.peopleTags, id: \.id) { person in
-                    let point = overlayPoint(for: person.id, in: proxy.size)
-                    Text(person.displayName)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.white)
-                        .padding(.vertical, 6)
-                        .padding(.horizontal, 10)
-                        .background(.black.opacity(0.55), in: Capsule())
-                        .overlay(
-                            Capsule().stroke(.white.opacity(0.15), lineWidth: 1)
-                        )
-                        .position(point)
-                        .accessibilityLabel("Tagged \(person.displayName)")
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-        .allowsHitTesting(false)
-    }
-
-    private var peopleTagsOverlayStacked: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            ForEach(entry.peopleTags, id: \.id) { person in
-                Text(person.displayName)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .padding(.vertical, 6)
-                    .padding(.horizontal, 10)
-                    .background(.black.opacity(0.55), in: Capsule())
-                    .overlay(
-                        Capsule().stroke(.white.opacity(0.15), lineWidth: 1)
-                    )
-                    .accessibilityLabel("Tagged \(person.displayName)")
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .padding(.top, 14)
-        .padding(.leading, 14)
-        .allowsHitTesting(false)
-    }
-
-    private func overlayPoint(for personID: UUID, in size: CGSize) -> CGPoint {
-        let placements = entry.peopleTagPlacements
-        if let p = placements.first(where: { $0.personTagId == personID }) {
-            return CGPoint(x: CGFloat(p.x) * size.width, y: CGFloat(p.y) * size.height)
-        }
-        return CGPoint(x: size.width * 0.5, y: size.height * 0.5)
-    }
-
-    private func place(person: PersonTag) {
-        guard let point = pendingPlacementPoint else { return }
-        pendingPlacementPoint = nil
-
-        let size = mediaContainerSize
-        let nx = size.width > 0 ? max(0, min(1, point.x / size.width)) : 0.5
-        let ny = size.height > 0 ? max(0, min(1, point.y / size.height)) : 0.5
-
-        var placements = entry.peopleTagPlacements
-        if let idx = placements.firstIndex(where: { $0.personTagId == person.id }) {
-            placements[idx].x = nx
-            placements[idx].y = ny
-        } else {
-            placements.append(PersonTagPlacement(personTagId: person.id, x: nx, y: ny))
-        }
-        entry.peopleTagPlacements = placements
-        try? modelContext.save()
     }
 
     private var missingAssetView: some View {
@@ -552,7 +409,6 @@ struct PhotoDetailView: View {
 /// Toolbar ⋯ menu for the collection pager only. Lives on `HomeCollectionViewer` so it isn’t inside a `TabView` page (avoids swipe / transition glitches).
 struct PhotoDetailPagerOverflowMenu: View {
     let entry: PhotoEntry
-    @Binding var placingPeopleTags: Bool
 
     @Environment(\.appServices) private var appServices
     @Environment(\.modelContext) private var modelContext
@@ -569,12 +425,6 @@ struct PhotoDetailPagerOverflowMenu: View {
         Menu {
             Button("Edit", systemImage: "pencil") {
                 showEditTags = true
-            }
-            if !entry.peopleTags.isEmpty {
-                Button(placingPeopleTags ? "Done placing people tags" : "Place people tags", systemImage: "person.crop.rectangle.badge.plus") {
-                    let next = !placingPeopleTags
-                    placingPeopleTags = next
-                }
             }
             Button("Share", systemImage: "square.and.arrow.up") {
                 beginShare()

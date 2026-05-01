@@ -452,9 +452,16 @@ struct ImportOptionsSheet: View {
         }
 
         for lid in orderedUniqueLids {
-            if let existing = DataService.existingPhotoEntry(localIdentifier: lid, context: modelContext),
-               existing.homeCollection != nil {
+            guard let existing = DataService.existingPhotoEntry(localIdentifier: lid, context: modelContext) else { continue }
+            if existing.homeCollection != nil {
                 importErrorMessage = "One or more photos are already in another collection."
+                dismissAfterAlert = false
+                showImportMessageAlert = true
+                return
+            }
+            // Standalone Home tile: cannot pull the same asset into a collection without removing the duplicate Home slot first.
+            if existing.isInHomeAlbum, existing.homeCollection == nil {
+                importErrorMessage = "One or more photos are already on your Home album. Remove them from Home first (or deselect them), then add the collection."
                 dismissAfterAlert = false
                 showImportMessageAlert = true
                 return
@@ -495,7 +502,6 @@ struct ImportOptionsSheet: View {
 
                 let coll = HomeCollection(
                     title: trimmedCollection,
-                    homeOrderIndex: DataService.nextHomeOrderIndex(context: modelContext),
                     createdDate: Date()
                 )
                 modelContext.insert(coll)
@@ -512,15 +518,11 @@ struct ImportOptionsSheet: View {
                         for p in appliedPeopleTags where !entry.peopleTags.contains(where: { $0.id == p.id }) {
                             entry.peopleTags.append(p)
                         }
-                        var placements = entry.peopleTagPlacements
-                        for p in appliedPeopleTags where !placements.contains(where: { $0.personTagId == p.id }) {
-                            placements.append(PersonTagPlacement(personTagId: p.id, x: 0.12, y: 0.14))
-                        }
-                        entry.peopleTagPlacements = placements
                     }
                 }
                 coll.entries = imageMembers
 
+                try HomeAlbumRow.renumberGridTimelineAppendingCollection(coll, modelContext: modelContext)
                 try modelContext.save()
                 dismiss()
             } catch {
@@ -547,11 +549,6 @@ struct ImportOptionsSheet: View {
                 for p in appliedPeopleTags where !entry.peopleTags.contains(where: { $0.id == p.id }) {
                     entry.peopleTags.append(p)
                 }
-                var placements = entry.peopleTagPlacements
-                for p in appliedPeopleTags where !placements.contains(where: { $0.personTagId == p.id }) {
-                    placements.append(PersonTagPlacement(personTagId: p.id, x: 0.12, y: 0.14))
-                }
-                entry.peopleTagPlacements = placements
             }
         }
         try? modelContext.save()

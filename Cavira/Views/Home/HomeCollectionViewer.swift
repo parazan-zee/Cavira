@@ -6,7 +6,6 @@ struct HomeCollectionViewer: View {
     let collection: HomeCollection
 
     @State private var page: Int = 0
-    @State private var isPlacingPeopleTags = false
 
     private var entries: [PhotoEntry] {
         collection.orderedEntries
@@ -26,15 +25,7 @@ struct HomeCollectionViewer: View {
                     ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
                         PhotoDetailView(
                             entry: entry,
-                            isEmbeddedInCollectionPager: true,
-                            externalPlacingPeopleTag: Binding(
-                                get: { page == index && isPlacingPeopleTags },
-                                set: { newValue in
-                                    if page == index {
-                                        isPlacingPeopleTags = newValue
-                                    }
-                                }
-                            )
+                            isEmbeddedInCollectionPager: true
                         )
                         .tag(index)
                     }
@@ -42,9 +33,6 @@ struct HomeCollectionViewer: View {
                 .tabViewStyle(.page(indexDisplayMode: .never))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .ignoresSafeArea(edges: .bottom)
-                .onChange(of: page) { _, _ in
-                    isPlacingPeopleTags = false
-                }
             }
         }
         .navigationTitle(collection.title)
@@ -64,7 +52,7 @@ struct HomeCollectionViewer: View {
                             .font(.subheadline.weight(.semibold))
                             .monospacedDigit()
                             .foregroundStyle(.white.opacity(0.92))
-                        PhotoDetailPagerOverflowMenu(entry: entries[page], placingPeopleTags: $isPlacingPeopleTags)
+                        PhotoDetailPagerOverflowMenu(entry: entries[page])
                     }
                 }
             }

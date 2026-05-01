@@ -37,4 +37,35 @@ enum HomeAlbumRow: Identifiable {
         }
         return lk.1 > rk.1
     }
+
+    // MARK: - Home grid / timeline ordering
+
+    /// Renumbers `homeOrderIndex` for standalone **image** rows and collections (with cover) so the given collection is **last**, preserving current order for everything else.
+    @MainActor
+    static func renumberGridTimelineAppendingCollection(_ collection: HomeCollection, modelContext: ModelContext) throws {
+        // Avoid `#Predicate` here: some Xcode / SwiftData versions still mis-compile filters involving `mediaKind` / enums.
+        let allEntries = try modelContext.fetch(FetchDescriptor<PhotoEntry>())
+        let standalone = allEntries.filter { entry in
+            entry.isInHomeAlbum && entry.homeCollection == nil && entry.mediaKind == .image
+        }
+
+        let colsDesc = FetchDescriptor<HomeCollection>()
+        let allCollections = try modelContext.fetch(colsDesc)
+
+        let standaloneRows = standalone.map { HomeAlbumRow.standalone($0) }
+        let collectionRows = allCollections
+            .filter { $0.id != collection.id && $0.coverEntry != nil }
+            .map { HomeAlbumRow.collection($0) }
+        let others = (standaloneRows + collectionRows).sorted(by: mergedSort)
+        let finalOrder = others + [.collection(collection)]
+
+        for (index, row) in finalOrder.enumerated() {
+            switch row {
+            case .standalone(let e):
+                e.homeOrderIndex = index
+            case .collection(let c):
+                c.homeOrderIndex = index
+            }
+        }
+    }
 }

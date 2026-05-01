@@ -134,17 +134,6 @@ enum DataService {
         s.themePalette = .ranger
     }
 
-    /// Next contiguous index for a new standalone Home row or `HomeCollection` tile (shared ordering space).
-    static func nextHomeOrderIndex(context: ModelContext) -> Int {
-        let photoDescriptor = FetchDescriptor<PhotoEntry>()
-        let photos = (try? context.fetch(photoDescriptor)) ?? []
-        let colDescriptor = FetchDescriptor<HomeCollection>()
-        let collections = (try? context.fetch(colDescriptor)) ?? []
-        let pMax = photos.compactMap(\.homeOrderIndex).max() ?? -1
-        let cMax = collections.compactMap(\.homeOrderIndex).max() ?? -1
-        return max(pMax, cMax) + 1
-    }
-
     /// One-time migration: convert legacy `Event` rows into `Story` rows, then delete the legacy rows.
     ///
     /// This removes the old tab concept while preserving user history.
